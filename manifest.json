@@ -1,0 +1,24 @@
+{
+    "manifest_version": 3,
+    "name": "VS Keys",
+    "version": "1.0.1",
+    "description": "Enables VS Code text editing shortcuts in browser text fields.",
+    "permissions": [
+      "clipboardRead",
+      "clipboardWrite",
+      "activeTab",
+      "scripting"
+    ],
+    "content_scripts": [
+      {
+        "matches": ["<all_urls>"],
+        "js": ["content_script.js"],
+        "run_at": "document_idle",
+        "all_frames": true
+      }
+    ],
+    "icons": {
+      "48": "icon48.png",
+      "128": "icon128.png"
+    }
+  }

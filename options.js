@@ -144,16 +144,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const setting = currentSettings[actionName];
         const originalKey = setting.key;
-        const config = DEFAULT_SHORTCUT_SETTINGS_CONFIG[actionName];
-        const isChord = !!config.chordPrefix;
-
-        activeKeyCapture = { actionName, originalKey, itemElement, isChord, part: isChord ? 'prefix' : 'full' };
+        // const config = DEFAULT_SHORTCUT_SETTINGS_CONFIG[actionName]; // config.chordPrefix not used here anymore for initial mode
+        
+        activeKeyCapture = { actionName, originalKey, itemElement, part: 'first', capturedFirstKey: null, capturedSecondKey: null }; // isChord determined later
 
         // Clear existing key display and show "listening" UI
         const keyKbd = itemElement.querySelector('.keys');
         const actionsDiv = itemElement.querySelector('.actions');
         
-        keyKbd.innerHTML = `<em>Press new key${isChord ? ' for Prefix...' : '...'}</em>`;
+        keyKbd.innerHTML = `<em>Press first key / first part of chord...</em>`;
         
         // Hide Edit/Reset, show Save/Cancel for key capture
         actionsDiv.innerHTML = `
@@ -171,7 +170,7 @@ document.addEventListener('DOMContentLoaded', () => {
         itemElement.querySelector('.save-captured-key').disabled = true; // Disabled until a key is captured
 
         document.addEventListener('keydown', handleKeyCaptureEvent, true);
-        console.log(`Starting key capture for ${actionName}. Chord: ${isChord}, Part: ${activeKeyCapture.part}`);
+        console.log(`Starting key capture for ${actionName}. Part: ${activeKeyCapture.part}`);
     }
 
     function formatCapturedKey(event) {
@@ -210,28 +209,29 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const capturedKeyString = formatCapturedKey(event);
         const saveButton = activeKeyCapture.itemElement.querySelector('.save-captured-key');
-
-        if (!capturedKeyString) { // e.g. only a modifier was pressed
-            if (saveButton) saveButton.disabled = true;
-            return;
-        }
-        
         const keyKbd = activeKeyCapture.itemElement.querySelector('.keys');
-        if (activeKeyCapture.isChord) {
-            if (activeKeyCapture.part === 'prefix') {
-                activeKeyCapture.capturedPrefix = capturedKeyString;
-                keyKbd.innerHTML = `<em>${getDisplayKey(capturedKeyString)} + Press second key...</em>`;
-                activeKeyCapture.part = 'second'; // Move to next part
-                if (saveButton) saveButton.disabled = true; // Wait for second key
-            } else { // part === 'second'
-                activeKeyCapture.capturedSecondKey = capturedKeyString;
-                keyKbd.innerHTML = `<em>${getDisplayKey(activeKeyCapture.capturedPrefix + ' ' + capturedKeyString)}</em>`;
-                if (saveButton) saveButton.disabled = false; // Full chord captured
+
+        if (activeKeyCapture.part === 'first') {
+            if (!capturedKeyString) { // Only a modifier was pressed for the first part
+                keyKbd.innerHTML = `<em style="color: orange;">Prefix must include a non-modifier key. Try Ctrl+K, etc.</em>`;
+                if (saveButton) saveButton.disabled = true;
+                return;
             }
-        } else { // Not a chord
-            activeKeyCapture.capturedKey = capturedKeyString;
-            keyKbd.innerHTML = `<em>${getDisplayKey(capturedKeyString)}</em>`;
-            if (saveButton) saveButton.disabled = false; // Key captured
+            activeKeyCapture.capturedFirstKey = capturedKeyString;
+            keyKbd.innerHTML = `<em>${getDisplayKey(activeKeyCapture.capturedFirstKey)} + Press optional second key... (or Save)</em>`;
+            activeKeyCapture.part = 'second';
+            if (saveButton) saveButton.disabled = false; // Enable save for single key
+        } else if (activeKeyCapture.part === 'second') {
+            if (!capturedKeyString) { // Only a modifier was pressed for the second part
+                // Display first part + error for second
+                keyKbd.innerHTML = `<em>${getDisplayKey(activeKeyCapture.capturedFirstKey)} + <span style="color: orange;">Second key must include a non-modifier.</span> (or Save first part)</em>`;
+                // Save button remains enabled to save just the first part.
+                // activeKeyCapture.capturedSecondKey remains null.
+                return;
+            }
+            activeKeyCapture.capturedSecondKey = capturedKeyString;
+            keyKbd.innerHTML = `<em>${getDisplayKey(activeKeyCapture.capturedFirstKey + ' ' + activeKeyCapture.capturedSecondKey)}</em>`;
+            if (saveButton) saveButton.disabled = false; // Full chord captured, save button should already be enabled
         }
     }
 
@@ -239,23 +239,15 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!activeKeyCapture || activeKeyCapture.actionName !== actionName) return;
         
         let finalKeyToSave;
-        if (activeKeyCapture.isChord) {
-            if (activeKeyCapture.capturedPrefix && activeKeyCapture.capturedSecondKey) {
-                finalKeyToSave = `${activeKeyCapture.capturedPrefix} ${activeKeyCapture.capturedSecondKey}`;
-            } else {
-                displayStatus(`Chord not fully captured for ${actionName}. Press both parts.`, false);
-                // Don't cancel, allow user to try capturing the second part if only prefix was done.
-                // Or, if a save was attempted prematurely, this error is appropriate.
-                // For now, let's assume save is only enabled when fully captured.
-                return;
-            }
-        } else { // Not a chord
-            if (activeKeyCapture.capturedKey) {
-                finalKeyToSave = activeKeyCapture.capturedKey;
-            } else {
-                displayStatus(`Key not captured for ${actionName}.`, false);
-                return;
-            }
+        if (activeKeyCapture.capturedFirstKey && activeKeyCapture.capturedSecondKey) {
+            finalKeyToSave = `${activeKeyCapture.capturedFirstKey} ${activeKeyCapture.capturedSecondKey}`;
+        } else if (activeKeyCapture.capturedFirstKey) {
+            finalKeyToSave = activeKeyCapture.capturedFirstKey;
+        } else {
+            displayStatus(`Key not fully captured for ${actionName}. Please try again.`, false);
+            // It's unlikely to reach here if saveButton logic in handleKeyCaptureEvent is correct
+            cancelKeyCapture(); // Cancel to reset the UI properly
+            return;
         }
 
         // --- Conflict Detection ---
@@ -270,9 +262,11 @@ document.addEventListener('DOMContentLoaded', () => {
         console.log(`Attempting to save key: ${finalKeyToSave} for action: ${actionName}`);
 
         currentSettings[actionName].key = finalKeyToSave;
-        currentSettings[actionName].isCustom = (finalKeyToSave !== DEFAULT_SHORTCUT_SETTINGS_CONFIG[actionName].defaultKey);
+        // isCustom will be set properly during the main save to storage,
+        // considering if it's now a chord or not.
+        // currentSettings[actionName].isCustom = (finalKeyToSave !== DEFAULT_SHORTCUT_SETTINGS_CONFIG[actionName].defaultKey);
         
-        // console.log(`Simulated save for ${actionName} with key ${finalKeyToSave}`); // Already logged above
+        console.log(`Key updated locally to: ${finalKeyToSave} for action: ${actionName}`);
         cleanupAfterKeyCapture();
         renderShortcuts(); // Re-render to show the new key and update button states
         displayStatus(`Key for "${DEFAULT_SHORTCUT_SETTINGS_CONFIG[actionName].description}" updated. Save settings to make permanent.`, true);
@@ -321,7 +315,8 @@ document.addEventListener('DOMContentLoaded', () => {
             currentSettings[actionName] = {
                 ...currentSettings[actionName], // Preserve enabled status
                 key: defaultConfig.defaultKey,
-                isCustom: false
+                isCustom: false,
+                isNowChord: defaultConfig.defaultKey.includes(' ')
             };
             renderShortcuts(); // Re-render to update the specific shortcut's display
             // No need to save immediately, user will click main "Save Settings"
@@ -335,9 +330,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 const defaultConfig = DEFAULT_SHORTCUT_SETTINGS_CONFIG[actionName];
                 currentSettings[actionName] = {
                     ...currentSettings[actionName], // Preserve enabled status
-                    enabled: currentSettings[actionName] ? currentSettings[actionName].enabled : defaultConfig.defaultEnabled, // Ensure 'enabled' exists
+                    enabled: currentSettings[actionName] ? currentSettings[actionName].enabled : defaultConfig.defaultEnabled,
                     key: defaultConfig.defaultKey,
-                    isCustom: false
+                    isCustom: false,
+                    isNowChord: defaultConfig.defaultKey.includes(' ')
                 };
             });
             renderShortcuts(); // Re-render the entire list
@@ -401,24 +397,39 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 if (typeof loadedSetting === 'object' && loadedSetting !== null && loadedSetting.hasOwnProperty('key')) {
                     // New format already exists
+                    let isCustom = loadedSetting.isCustom || (loadedSetting.key !== defaultConfig.defaultKey);
+                    const isNowChord = loadedSetting.hasOwnProperty('isNowChord') ? loadedSetting.isNowChord : loadedSetting.key.includes(' ');
+                    const defaultIsChord = defaultConfig.defaultKey.includes(' ');
+                    if (isNowChord !== defaultIsChord && loadedSetting.key !== defaultConfig.defaultKey) { // if structure changed and key is different
+                        isCustom = true;
+                    } else if (isNowChord !== defaultIsChord && loadedSetting.key === defaultConfig.defaultKey && defaultConfig.chordPrefix === undefined && isNowChord) {
+                        // Handles case where default was "X" and user made it "X Y" -> custom because structure changed
+                        // But if default was "Ctrl+K C" and user saved "Ctrl+K C", it's not custom by this rule unless keys differ
+                        isCustom = true;
+                    }
+
+
                     currentSettings[actionName] = {
                         enabled: loadedSetting.hasOwnProperty('enabled') ? loadedSetting.enabled : defaultConfig.defaultEnabled,
                         key: loadedSetting.key,
-                        isCustom: loadedSetting.isCustom || (loadedSetting.key !== defaultConfig.defaultKey)
+                        isCustom: isCustom,
+                        isNowChord: isNowChord
                     };
                 } else if (typeof loadedSetting === 'boolean') {
                     // Old format (just enabled status) - migrate
                     currentSettings[actionName] = {
                         enabled: loadedSetting,
                         key: defaultConfig.defaultKey,
-                        isCustom: false
+                        isCustom: false,
+                        isNowChord: defaultConfig.defaultKey.includes(' ')
                     };
                 } else {
                     // No setting found, use defaults
                     currentSettings[actionName] = {
                         enabled: defaultConfig.defaultEnabled,
                         key: defaultConfig.defaultKey,
-                        isCustom: false
+                        isCustom: false,
+                        isNowChord: defaultConfig.defaultKey.includes(' ')
                     };
                 }
             });
@@ -435,13 +446,27 @@ document.addEventListener('DOMContentLoaded', () => {
         const shortcutSettingsToSave = {};
         Object.keys(currentSettings).forEach(actionName => {
             const checkbox = document.getElementById(`toggle_${actionName}`);
-            const currentKey = currentSettings[actionName].key; // This will be updated by edit UI later
-            const defaultKey = DEFAULT_SHORTCUT_SETTINGS_CONFIG[actionName].defaultKey;
+            const currentKey = currentSettings[actionName].key;
+            const defaultConfig = DEFAULT_SHORTCUT_SETTINGS_CONFIG[actionName];
+            const defaultKey = defaultConfig.defaultKey;
+            
+            const isNowChord = currentKey.includes(' ');
+            let isCustom = currentKey !== defaultKey;
+
+            // If the default was a chord and the new one is not (or vice versa), it's custom.
+            // Also, if the default was not a chord, but the new one is, it's custom.
+            // Or if default was chord, new is chord, but different keys.
+            const defaultIsChord = defaultKey.includes(' ');
+            if (isNowChord !== defaultIsChord) {
+                isCustom = true;
+            }
+            // If both are chords or both are not, the simple currentKey !== defaultKey check is enough.
 
             shortcutSettingsToSave[actionName] = {
                 enabled: checkbox ? checkbox.checked : currentSettings[actionName].enabled,
                 key: currentKey,
-                isCustom: currentKey !== defaultKey
+                isCustom: isCustom,
+                isNowChord: isNowChord // Add this new property
             };
         });
 

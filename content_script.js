@@ -64,19 +64,30 @@ async function mainKeyDownHandler(event) {
             if (!setting.enabled) continue;
 
             const defaultConfig = DEFAULT_SHORTCUT_SETTINGS_CONFIG[actionName];
-            if (defaultConfig.chordPrefix) {
+            // A setting is effectively a chord if its default config defines a chordPrefix OR if user made it a chord.
+            const isEffectivelyChord = defaultConfig.chordPrefix || setting.isNowChord === true;
+
+            if (isEffectivelyChord) {
                 // Parse the *actual* key for the prefix from settings.key
-                // Example: setting.key might be "Ctrl+K Ctrl+C"
-                const parts = setting.key.split(/\s+/); // Split "Ctrl+K Ctrl+C" into ["Ctrl+K", "Ctrl+C"]
-                if (parts.length < 2) continue; // Malformed chord key in settings
+                const parts = setting.key.split(/\s+/);
+                if (parts.length < 1) continue; // Should not happen if key is present
+                
+                // If it's a chord (either by default or user-defined), it must have at least two parts in setting.key to be valid for chord logic.
+                // However, for prefix detection, we only care about the first part.
+                // If setting.key is "Ctrl+K C", parts[0] is "Ctrl+K".
+                // If setting.key is "F5" but isNowChord is somehow true (should not happen), parts[0] is "F5".
+                // This logic assumes that if isNowChord is true, setting.key will be space-separated.
                 
                 const currentActionPrefix = parts[0];
                 const parsedPrefixKey = parseKeyString(currentActionPrefix);
 
                 if (eventMatchesKey(event, parsedPrefixKey, IS_MAC)) {
-                    potentialChordPrefixEvent = true;
-                    activeChordPrefixString = currentActionPrefix; // Store the matched prefix string
-                    break;
+                    // Check if this prefix actually belongs to a *two-part* chord in settings
+                    if (parts.length >= 2) {
+                        potentialChordPrefixEvent = true;
+                        activeChordPrefixString = currentActionPrefix; // Store the matched prefix string
+                        break;
+                    }
                 }
             }
         }
@@ -103,15 +114,19 @@ async function mainKeyDownHandler(event) {
             if (!setting.enabled) continue;
 
             const defaultConfig = DEFAULT_SHORTCUT_SETTINGS_CONFIG[actionName];
-            if (defaultConfig.chordPrefix) { // This action is a chord
+            const isEffectivelyChord = defaultConfig.chordPrefix || setting.isNowChord === true;
+
+            if (isEffectivelyChord) {
                 const parts = setting.key.split(/\s+/);
+                // A valid chord for execution must have two parts.
                 if (parts.length < 2) continue;
 
                 const expectedPrefix = parts[0];
-                const expectedSecondKeyString = parts[1]; // This is like "C" or "Ctrl+C"
+                // The second part could potentially have spaces if a user somehow inputs that,
+                // so join remaining parts. Though formatCapturedKey in options.js should prevent this.
+                const expectedSecondKeyString = parts.slice(1).join(' ');
 
                 if (chordState.prefix === expectedPrefix) {
-                    // Now check if the current event matches the expectedSecondKeyString
                     const parsedSecondKey = parseKeyString(expectedSecondKeyString);
                     if (eventMatchesKey(event, parsedSecondKey, IS_MAC)) {
                         if (shortcutActionHandlers[actionName]) {
@@ -125,7 +140,7 @@ async function mainKeyDownHandler(event) {
                 }
             }
         }
-        chordState = null; 
+        chordState = null;
         if (chordActionFound) {
             return;
         } 
@@ -139,7 +154,9 @@ async function mainKeyDownHandler(event) {
         if (!setting.enabled) continue;
 
         const defaultConfig = DEFAULT_SHORTCUT_SETTINGS_CONFIG[actionName];
-        if (defaultConfig.chordPrefix) continue; // Chorded shortcuts are handled above
+        const isEffectivelyChord = defaultConfig.chordPrefix || setting.isNowChord === true;
+
+        if (isEffectivelyChord) continue; // Chorded shortcuts (default or user-defined) are handled above
 
         // Use the actual key from settings (could be custom)
         const parsedKey = parseKeyString(setting.key);
@@ -201,22 +218,24 @@ function loadSettingsAndInitialize() {
                 currentShortcutSettings[actionName] = {
                     enabled: loadedSetting.hasOwnProperty('enabled') ? loadedSetting.enabled : defaultConfig.defaultEnabled,
                     key: loadedSetting.key,
-                    // isCustom is not strictly needed by content_script, but good to keep structure consistent if ever logged
-                    isCustom: loadedSetting.isCustom || (loadedSetting.key !== defaultConfig.defaultKey)
+                    isCustom: loadedSetting.isCustom || (loadedSetting.key !== defaultConfig.defaultKey),
+                    isNowChord: loadedSetting.hasOwnProperty('isNowChord') ? loadedSetting.isNowChord : loadedSetting.key.includes(' ') // Store this
                 };
             } else if (typeof loadedSetting === 'boolean') {
                 // Old format (just enabled status) - migrate
                 currentShortcutSettings[actionName] = {
                     enabled: loadedSetting,
                     key: defaultConfig.defaultKey,
-                    isCustom: false
+                    isCustom: false,
+                    isNowChord: defaultConfig.defaultKey.includes(' ') // Derive from default
                 };
             } else {
                 // No setting found, use defaults from DEFAULT_SHORTCUT_SETTINGS_CONFIG
                 currentShortcutSettings[actionName] = {
                     enabled: defaultConfig.defaultEnabled,
                     key: defaultConfig.defaultKey,
-                    isCustom: false
+                    isCustom: false,
+                    isNowChord: defaultConfig.defaultKey.includes(' ') // Derive from default
                 };
             }
         });

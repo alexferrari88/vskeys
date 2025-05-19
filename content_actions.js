@@ -30,81 +30,122 @@ async function handleCutLine(element, globalSettings) {
 }
 
 async function handleCopyLine(element, globalSettings) {
+    
     const selDetails = getSelectionDetails(element);
+    let textToCopy = ""; // Initialize as empty string
+    let feedback = "Selection Copied";
+
     if (selDetails.collapsed && element.tagName.toLowerCase() !== 'input') {
-        const { lineText, lineStart, lineEnd, fullText } = getCurrentLineInfo(element);
-        const textToCopy = fullText.substring(lineStart, lineEnd + (fullText[lineEnd] === '\n' ? 1:0));
-        if (lineText.trim() === "" && fullText[lineEnd] !== '\n' && lineEnd === fullText.length) { // Copying empty last line
-            await navigator.clipboard.writeText("\n"); // VS Code copies a newline
-        } else {
-            await navigator.clipboard.writeText(textToCopy);
+        
+        const { lineStart, lineEnd, fullText } = getCurrentLineInfo(element);
+        
+        textToCopy = fullText.substring(lineStart, lineEnd); // Get the content of the line
+
+        // CRITICAL: Ensure the copied "line" ALWAYS includes a newline character at the end.
+        // This makes its content distinguishable for our paste logic.
+        if (!textToCopy.endsWith('\n')) {
+            textToCopy += '\n';
         }
-        showFeedbackMessage("Line Copied", element, globalSettings);
-    } else {
-        if (element.isContentEditable) document.execCommand('copy');
-        else {
-            if (!selDetails.selectedText && selDetails.collapsed && element.tagName.toLowerCase() === 'input') { // Input field, empty selection, copy all
-                await navigator.clipboard.writeText(element.value);
-            } else {
-                await navigator.clipboard.writeText(selDetails.selectedText);
+        
+        feedback = "Line Copied";
+
+    } else { // Normal selection copy or input field copy
+        
+        if (element.isContentEditable) {
+            // Contenteditable copy is complex. Browser's execCommand is used.
+            // This means our paste logic might not identify it as a "line copy"
+            // unless the copied HTML somehow translates to text ending in \n.
+            // This is a known challenge for contenteditable.
+            const didCopy = document.execCommand('copy');
+            
+            showFeedbackMessage(feedback, element, globalSettings);
+            // We cannot reliably ensure \n is appended here for contenteditable without complex HTML parsing.
+            // The paste logic will treat it as a standard paste.
+            return; 
+        } else { // textarea or input
+            textToCopy = selDetails.selectedText;
+            if (selDetails.collapsed && element.tagName.toLowerCase() === 'input') {
+                textToCopy = element.value; 
+                feedback = "Input Content Copied";
             }
+            // For regular selection copy in textarea/input, we do NOT force a newline.
+            // Only for "line copy" (empty selection context).
         }
-        showFeedbackMessage("Selection Copied", element, globalSettings);
+    }
+
+    if (typeof textToCopy === 'string' && textToCopy.length > 0) { // Only write if there's something to copy
+        
+        try {
+            await navigator.clipboard.writeText(textToCopy);
+            showFeedbackMessage(feedback, element, globalSettings);
+        } catch (err) {
+            showFeedbackMessage("Copy failed (clipboard API error)", element, globalSettings);
+        }
+    } else if (selDetails.collapsed && element.tagName.toLowerCase() !== 'input' && textToCopy === '\n') {
+        // Special case: copying an "empty" line still means copying the newline.
+         try {
+            await navigator.clipboard.writeText(textToCopy);
+            showFeedbackMessage(feedback, element, globalSettings);
+        } catch (err) {
+            showFeedbackMessage("Copy failed (clipboard API error)", element, globalSettings);
+        }
+    }
+    else {
+        showFeedbackMessage("Nothing to copy", element, globalSettings);
     }
 }
 
 async function handlePaste(element, globalSettings) {
-    _extensionHandledPaste = true; 
+    
+    _extensionHandledPaste = true; // Set flag: extension is attempting to handle
 
     try {
         const textToPaste = await navigator.clipboard.readText();
+        
         if (typeof textToPaste !== 'string') {
              showFeedbackMessage("Clipboard empty or unreadable", element, globalSettings);
-             return;
+             return; // No finally block needed as _extensionHandledPaste is reset by event listener
         }
 
         const selDetails = getSelectionDetails(element);
 
-        // VS Code Line Paste Behavior:
-        // If clipboard contains a newline (likely a copied line) AND no text is selected at paste destination,
-        // it should insert the clipboard content as a new line.
-        const isVSCodeLinePasteScenario = textToPaste.includes('\n') && selDetails.collapsed;
+        // CRUCIAL: Check if the textToPaste (from clipboard) ends with a newline.
+        // This is the primary indicator of a "line copied via our extension or similar".
+        const clipboardContentIsLine = textToPaste.endsWith('\n');
 
-        if (isVSCodeLinePasteScenario && element.tagName.toLowerCase() !== 'input') { // Exclude simple inputs from complex line paste
-            let { lineStart, lineEnd, fullText } = getCurrentLineInfo(element);
+        if (clipboardContentIsLine && selDetails.collapsed && element.tagName.toLowerCase() !== 'input') {
+            let { lineStart, fullText } = getCurrentLineInfo(element);
             
-            // Ensure pasted text ends with a newline if it's multi-line or intended as a full line
-            let textToInsert = textToPaste;
-            if (!textToInsert.endsWith('\n')) {
-                textToInsert += '\n';
-            }
+            // textToPaste already includes its necessary trailing newline.
+            let textToInsert = textToPaste; 
 
-            // Paste the new line(s) at the beginning of the current line, pushing existing content down.
-            // The cursor should end up at the beginning of the line *after* the pasted content.
             if (element.isContentEditable) {
-                // For contenteditable, moving to line start and inserting HTML with <br> might be more robust for new lines
-                setSelection(element, lineStart, lineStart); // Move cursor to beginning of current line
+                setSelection(element, lineStart, lineStart); 
                 
-                // Prepare HTML: escape HTML in textToPaste and replace \n with <br>
                 const tempDiv = document.createElement('div');
-                tempDiv.innerText = textToInsert.replace(/\n$/, ''); // textContent handles escaping
+                tempDiv.innerText = textToInsert.replace(/\n$/, ''); // Handle escaping
                 let htmlToInsert = tempDiv.innerHTML.replace(/\n/g, '<br>');
-                if (textToInsert.endsWith('\n')) htmlToInsert += '<br>';
+                 // Ensure the final \n from textToInsert results in a visible line break if it wasn't already double <br>
+                if (textToInsert.endsWith('\n') && !htmlToInsert.endsWith('<br>')) {
+                    htmlToInsert += '<br>';
+                } else if (textToInsert.endsWith('\n\n') && htmlToInsert.endsWith('<br>')) {
+                    // if original had \n\n and we have one <br>, add another
+                    // This logic might need more refinement for multiple trailing newlines
+                }
 
-
+                
                 document.execCommand('insertHTML', false, htmlToInsert);
-                // Cursor position after insertHTML can be unpredictable.
-                // A more robust solution might involve range manipulation before/after.
+                
             } else { // textarea
                 replaceText(element, textToInsert, lineStart, lineStart);
-                // replaceText by default places cursor at end of insertion.
-                // For VSCode paste, cursor should be at the start of the next line.
-                // Let's calculate that: lineStart + textToInsert.length
-                setSelection(element, lineStart + textToInsert.length, lineStart + textToInsert.length);
+                const newCursorPos = lineStart + textToInsert.length;
+                setSelection(element, newCursorPos, newCursorPos);
+                
             }
-            showFeedbackMessage("Line Pasted (VS Code style)", element, globalSettings);
+            showFeedbackMessage("Line Pasted", element, globalSettings);
 
-        } else { // Standard inline paste (replacing selection or inserting at cursor)
+        } else { 
+            
             if (element.isContentEditable) {
                 document.execCommand('insertText', false, textToPaste);
             } else { // textarea or input
@@ -116,9 +157,8 @@ async function handlePaste(element, globalSettings) {
     } catch (err) {
         console.error("VS Keys - Paste error:", err);
         showFeedbackMessage("Paste failed (see console)", element, globalSettings);
-    } finally {
-        setTimeout(() => { _extensionHandledPaste = false; }, 50);
     }
+    // _extensionHandledPaste is reset by the 'paste' event listener's timeout
 }
 
 function handleDeleteLine(element, globalSettings) {
@@ -323,7 +363,7 @@ function handleSelectWordOrNextOccurrenceAction(element, globalSettings) {
 
 function transformSelectionText(element, transformFn, feedbackMsg, globalSettings) {
     const selDetails = getSelectionDetails(element);
-    if (selDetails.collapsed) { 
+    if (selDetails.collapsed) {
         showFeedbackMessage("Select text to transform case", element, globalSettings);
         return;
     }

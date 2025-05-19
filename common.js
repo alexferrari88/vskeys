@@ -43,7 +43,7 @@ function parseKeyString(keyString) {
         // This part is more for future-proofing if we parse full chord strings here.
     }
 
-    const parts = (chordParts[0] || keyString).split('+').map(p => p.trim().toLowerCase());
+    const parts = (keyString.split(/\s+/)[0] || keyString).split('+').map(p => p.trim().toLowerCase());
     const result = {
         ctrl: parts.includes('ctrl'),
         shift: parts.includes('shift'),
@@ -62,39 +62,43 @@ function parseKeyString(keyString) {
         ' ': 'space' // Example: if we want to define 'Ctrl+Space'
     };
     result.key = keyMap[result.key] || result.key; // Use mapped key or original if not in map
-
     return result;
 }
 
 function eventMatchesKey(event, parsedKey, isMac) {
     const eventCtrl = isMac ? event.metaKey : event.ctrlKey;
     const eventKeyLower = event.key.toLowerCase();
-    let targetKey = parsedKey.key.toLowerCase();
+    const targetKey = parsedKey.key.toLowerCase();
 
-    // Map some event.key values to what we might have in parsedKey.key
-    const eventKeyMap = {
-        ' ': 'space',
-        // Potentially more mappings if event.key provides variations
-    };
-    const mappedEventKey = eventKeyMap[eventKeyLower] || eventKeyLower;
-
-    // If the parsed key is a single character (e.g. 'c', 'x', '/'), match directly
-    // Otherwise, use the mappedEventKey which handles 'arrowdown', 'enter', etc.
-    const keyToCompare = targetKey.length === 1 ? eventKeyLower : mappedEventKey;
-
-    // For single key shortcuts like 'Home' (no modifiers in definition), ensure no modifiers are pressed
-    if (!parsedKey.ctrl && !parsedKey.shift && !parsedKey.alt && !parsedKey.meta) {
-        return keyToCompare === targetKey && !eventCtrl && !event.shiftKey && !event.altKey && !event.metaKey;
+    // If Alt is part of the shortcut, event.key might be altered by the OS/browser
+    // e.g. Alt+U -> ü on some systems. 'event.code' gives the physical key.
+    // We need to be careful: 'event.code' is like 'KeyU', 'Digit1', 'Slash'.
+    // parsedKey.key is usually 'u', '1', '/'.
+    
+    let keyToCompareWithEvent;
+    if (parsedKey.alt && event.altKey && event.code && event.code.startsWith('Key') && event.code.length === 4) {
+        // If Alt is pressed and it's a letter key (e.g. event.code 'KeyU')
+        // Compare against the character from event.code (e.g., 'u')
+        keyToCompareWithEvent = event.code.substring(3).toLowerCase();
+    } else {
+        const keyMap = { ' ': 'space', /* other functional keys */ };
+        keyToCompareWithEvent = keyMap[eventKeyLower] || eventKeyLower;
     }
 
-    // For modifier shortcuts
-    // Note: `parsedKey.meta` is true if "meta" was in the config string.
-    // `event.metaKey` is true if Cmd (Mac) or Windows key was pressed.
-    // `eventCtrl` handles Cmd/Ctrl equivalence based on `isMac`.
-    return (eventCtrl === parsedKey.ctrl || (isMac && parsedKey.ctrl && event.metaKey) || (!isMac && parsedKey.meta && event.metaKey) ) &&
-           event.shiftKey === parsedKey.shift &&
-           event.altKey === parsedKey.alt && // Alt key must match exactly
-           keyToCompare === targetKey;
+
+    const keyMatches = (keyToCompareWithEvent === targetKey);
+    
+    const ctrlMatch = (eventCtrl === parsedKey.ctrl);
+    const shiftMatch = (event.shiftKey === parsedKey.shift);
+    const altMatch = (event.altKey === parsedKey.alt);
+
+    if (!parsedKey.ctrl && !parsedKey.shift && !parsedKey.alt && !parsedKey.meta) {
+        return keyMatches && !eventCtrl && !event.shiftKey && !event.altKey && !event.metaKey;
+    }
+
+    const finalMatch = ctrlMatch && shiftMatch && altMatch && keyMatches;
+
+    return finalMatch;
 }
 
 // Default global settings

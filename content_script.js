@@ -9,7 +9,6 @@ const CHORD_TIMEOUT = 1500; // ms
 const IS_MAC = navigator.platform.toUpperCase().indexOf('MAC') >= 0;
 let _extensionHandledPaste = false; // Global flag for paste handling
 
-
 // Map action names to their handler functions (ensure this is complete)
 const shortcutActionHandlers = {
     'cutLine': handleCutLine,
@@ -41,11 +40,14 @@ const shortcutActionHandlers = {
 
 
 async function mainKeyDownHandler(event) {
-    if (isSiteDisabled) return;
+
+    if (isSiteDisabled) {
+        return;
+    }
 
     const activeElement = document.activeElement;
     if (!isEditable(activeElement)) {
-        chordState = null; 
+        chordState = null;
         return;
     }
 
@@ -54,14 +56,14 @@ async function mainKeyDownHandler(event) {
     // --- Chord Handling ---
     if (eventCtrlKey && !event.shiftKey && !event.altKey && event.key.toLowerCase() === 'k') {
         const isAnyKChordEnabled = Object.entries(currentShortcutSettings)
-            .some(([action, enabled]) => 
+            .some(([action, enabled]) =>
                 enabled && DEFAULT_SHORTCUT_SETTINGS_CONFIG[action]?.chordPrefix === 'Ctrl+K'
             );
         if (isAnyKChordEnabled) {
             chordState = 'K_PENDING';
             lastChordKeyTime = Date.now();
-            event.preventDefault();
-            event.stopPropagation();
+            event.preventDefault(); 
+            event.stopPropagation(); 
             showFeedbackMessage("Ctrl+K...", activeElement, currentGlobalSettings);
             setTimeout(() => {
                 if (Date.now() - lastChordKeyTime >= CHORD_TIMEOUT && chordState === 'K_PENDING') {
@@ -69,7 +71,9 @@ async function mainKeyDownHandler(event) {
                     showFeedbackMessage("Ctrl+K timed out", activeElement, currentGlobalSettings);
                 }
             }, CHORD_TIMEOUT);
-            return; 
+            return;
+        } else {
+            
         }
     }
 
@@ -78,12 +82,12 @@ async function mainKeyDownHandler(event) {
         let chordActionFound = false;
         for (const actionName in DEFAULT_SHORTCUT_SETTINGS_CONFIG) {
             if (currentShortcutSettings[actionName] !== true) continue;
-
             const config = DEFAULT_SHORTCUT_SETTINGS_CONFIG[actionName];
             if (config.chordPrefix === 'Ctrl+K' && config.chordKey.toLowerCase() === secondKey) {
+                
                 if (shortcutActionHandlers[actionName]) {
-                    event.preventDefault();
-                    event.stopPropagation();
+                    event.preventDefault(); 
+                    event.stopPropagation(); 
                     await shortcutActionHandlers[actionName](activeElement, currentGlobalSettings);
                     chordActionFound = true;
                     break;
@@ -91,44 +95,60 @@ async function mainKeyDownHandler(event) {
             }
         }
         chordState = null; 
-        if (chordActionFound) return; 
+        if (chordActionFound) {
+            return;
+        } 
     }
 
 
     // --- Regular (Non-Chorded) Shortcuts ---
+    
     for (const actionName in DEFAULT_SHORTCUT_SETTINGS_CONFIG) {
-        if (currentShortcutSettings[actionName] !== true) continue; 
+        if (currentShortcutSettings[actionName] !== true) continue;
 
         const config = DEFAULT_SHORTCUT_SETTINGS_CONFIG[actionName];
-        if (config.chordPrefix) continue; 
+        if (config.chordPrefix) continue;
 
         const parsedKey = parseKeyString(config.defaultKey);
-        
+
         if (eventMatchesKey(event, parsedKey, IS_MAC)) {
             const handler = shortcutActionHandlers[actionName];
             if (handler) {
-                let handled = true; 
-                
-                // Special pre-handling for paste to set the flag
-                if (actionName === 'paste') {
-                    _extensionHandledPaste = true; // Set flag before calling handler
-                }
+                let handled = true;
 
+                if (actionName === 'paste') {
+                    _extensionHandledPaste = true;
+                }
+                
                 if (actionName === 'smartHome') {
                     handled = await handler(activeElement, currentGlobalSettings);
                 } else {
                     await handler(activeElement, currentGlobalSettings);
                 }
 
-                if (handled !== false) { // If handler did not explicitly return false
-                    event.preventDefault();
-                    event.stopPropagation();
+                if (handled !== false) {
+                    event.preventDefault(); 
+                    event.stopPropagation(); 
                 }
-                return; 
-            }
+                return;
+            } 
         }
     }
 }
+
+document.addEventListener('paste', (event) => {
+    if (_extensionHandledPaste && isEditable(event.target)) {
+        event.preventDefault(); 
+        event.stopPropagation(); 
+    } else {
+        
+    }
+    // It's crucial to reset this flag *after* the browser has had a chance to process (or be blocked by) the paste event.
+    // Setting it in a timeout ensures it's reset *after* this event handler and any default action.
+    setTimeout(() => {
+        _extensionHandledPaste = false;
+    }, 0);
+}, true); // Capture phase
 
 function loadSettingsAndInitialize() {
     chrome.storage.sync.get(['shortcutSettings', 'disabledSites', 'globalSettings'], (data) => {
@@ -157,7 +177,7 @@ function loadSettingsAndInitialize() {
         });
         
         if (isSiteDisabled) {
-            console.log(`VS Code Shortcuts Extension disabled on ${currentHostname}`);
+            console.log(`VS Keys Extension disabled on ${currentHostname}`);
         }
     });
 }

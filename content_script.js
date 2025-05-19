@@ -55,42 +55,73 @@ async function mainKeyDownHandler(event) {
 
     // --- Chord Handling ---
     if (eventCtrlKey && !event.shiftKey && !event.altKey && event.key.toLowerCase() === 'k') {
-        const isAnyKChordEnabled = Object.entries(currentShortcutSettings)
-            .some(([action, enabled]) =>
-                enabled && DEFAULT_SHORTCUT_SETTINGS_CONFIG[action]?.chordPrefix === 'Ctrl+K'
-            );
-        if (isAnyKChordEnabled) {
-            chordState = 'K_PENDING';
-            lastChordKeyTime = Date.now();
-            event.preventDefault(); 
-            event.stopPropagation(); 
-            showFeedbackMessage("Ctrl+K...", activeElement, currentGlobalSettings);
+        // Check if any chord starting with "Ctrl+K" (or its customized equivalent) is enabled
+        let potentialChordPrefixEvent = false;
+        let activeChordPrefixString = '';
+
+        for (const actionName in currentShortcutSettings) {
+            const setting = currentShortcutSettings[actionName];
+            if (!setting.enabled) continue;
+
+            const defaultConfig = DEFAULT_SHORTCUT_SETTINGS_CONFIG[actionName];
+            if (defaultConfig.chordPrefix) {
+                // Parse the *actual* key for the prefix from settings.key
+                // Example: setting.key might be "Ctrl+K Ctrl+C"
+                const parts = setting.key.split(/\s+/); // Split "Ctrl+K Ctrl+C" into ["Ctrl+K", "Ctrl+C"]
+                if (parts.length < 2) continue; // Malformed chord key in settings
+                
+                const currentActionPrefix = parts[0];
+                const parsedPrefixKey = parseKeyString(currentActionPrefix);
+
+                if (eventMatchesKey(event, parsedPrefixKey, IS_MAC)) {
+                    potentialChordPrefixEvent = true;
+                    activeChordPrefixString = currentActionPrefix; // Store the matched prefix string
+                    break;
+                }
+            }
+        }
+
+        if (potentialChordPrefixEvent) {
+            chordState = { prefix: activeChordPrefixString, time: Date.now() };
+            event.preventDefault();
+            event.stopPropagation();
+            showFeedbackMessage(`${getDisplayKey(activeChordPrefixString)}...`, activeElement, currentGlobalSettings); // Show the actual prefix
             setTimeout(() => {
-                if (Date.now() - lastChordKeyTime >= CHORD_TIMEOUT && chordState === 'K_PENDING') {
+                if (chordState && chordState.prefix === activeChordPrefixString && (Date.now() - chordState.time >= CHORD_TIMEOUT)) {
                     chordState = null;
-                    showFeedbackMessage("Ctrl+K timed out", activeElement, currentGlobalSettings);
+                    showFeedbackMessage(`${getDisplayKey(activeChordPrefixString)} timed out`, activeElement, currentGlobalSettings);
                 }
             }, CHORD_TIMEOUT);
             return;
-        } else {
-            
         }
     }
 
-    if (chordState === 'K_PENDING' && Date.now() - lastChordKeyTime < CHORD_TIMEOUT) {
-        const secondKey = event.key.toLowerCase();
+    if (chordState && (Date.now() - chordState.time < CHORD_TIMEOUT)) {
         let chordActionFound = false;
-        for (const actionName in DEFAULT_SHORTCUT_SETTINGS_CONFIG) {
-            if (currentShortcutSettings[actionName] !== true) continue;
-            const config = DEFAULT_SHORTCUT_SETTINGS_CONFIG[actionName];
-            if (config.chordPrefix === 'Ctrl+K' && config.chordKey.toLowerCase() === secondKey) {
-                
-                if (shortcutActionHandlers[actionName]) {
-                    event.preventDefault(); 
-                    event.stopPropagation(); 
-                    await shortcutActionHandlers[actionName](activeElement, currentGlobalSettings);
-                    chordActionFound = true;
-                    break;
+        for (const actionName in currentShortcutSettings) {
+            const setting = currentShortcutSettings[actionName];
+            if (!setting.enabled) continue;
+
+            const defaultConfig = DEFAULT_SHORTCUT_SETTINGS_CONFIG[actionName];
+            if (defaultConfig.chordPrefix) { // This action is a chord
+                const parts = setting.key.split(/\s+/);
+                if (parts.length < 2) continue;
+
+                const expectedPrefix = parts[0];
+                const expectedSecondKeyString = parts[1]; // This is like "C" or "Ctrl+C"
+
+                if (chordState.prefix === expectedPrefix) {
+                    // Now check if the current event matches the expectedSecondKeyString
+                    const parsedSecondKey = parseKeyString(expectedSecondKeyString);
+                    if (eventMatchesKey(event, parsedSecondKey, IS_MAC)) {
+                        if (shortcutActionHandlers[actionName]) {
+                            event.preventDefault();
+                            event.stopPropagation();
+                            await shortcutActionHandlers[actionName](activeElement, currentGlobalSettings);
+                            chordActionFound = true;
+                            break;
+                        }
+                    }
                 }
             }
         }
@@ -103,13 +134,15 @@ async function mainKeyDownHandler(event) {
 
     // --- Regular (Non-Chorded) Shortcuts ---
     
-    for (const actionName in DEFAULT_SHORTCUT_SETTINGS_CONFIG) {
-        if (currentShortcutSettings[actionName] !== true) continue;
+    for (const actionName in currentShortcutSettings) {
+        const setting = currentShortcutSettings[actionName];
+        if (!setting.enabled) continue;
 
-        const config = DEFAULT_SHORTCUT_SETTINGS_CONFIG[actionName];
-        if (config.chordPrefix) continue;
+        const defaultConfig = DEFAULT_SHORTCUT_SETTINGS_CONFIG[actionName];
+        if (defaultConfig.chordPrefix) continue; // Chorded shortcuts are handled above
 
-        const parsedKey = parseKeyString(config.defaultKey);
+        // Use the actual key from settings (could be custom)
+        const parsedKey = parseKeyString(setting.key);
 
         if (eventMatchesKey(event, parsedKey, IS_MAC)) {
             const handler = shortcutActionHandlers[actionName];
@@ -152,14 +185,40 @@ document.addEventListener('paste', (event) => {
 
 function loadSettingsAndInitialize() {
     chrome.storage.sync.get(['shortcutSettings', 'disabledSites', 'globalSettings'], (data) => {
-        const loadedShortcutSettings = data.shortcutSettings || {};
+        const loadedShortcutSettingsFromStorage = data.shortcutSettings || {};
         const loadedDisabledSites = data.disabledSites || [...DEFAULT_GLOBAL_SETTINGS.disabledSites];
         currentGlobalSettings = { ...DEFAULT_GLOBAL_SETTINGS, ...(data.globalSettings || {}) };
 
+        // Initialize currentShortcutSettings for content script
+        currentShortcutSettings = {};
+
         Object.keys(DEFAULT_SHORTCUT_SETTINGS_CONFIG).forEach(actionName => {
-            currentShortcutSettings[actionName] = loadedShortcutSettings.hasOwnProperty(actionName) ?
-                                          loadedShortcutSettings[actionName] :
-                                          DEFAULT_SHORTCUT_SETTINGS_CONFIG[actionName].defaultEnabled;
+            const defaultConfig = DEFAULT_SHORTCUT_SETTINGS_CONFIG[actionName];
+            const loadedSetting = loadedShortcutSettingsFromStorage[actionName];
+
+            if (typeof loadedSetting === 'object' && loadedSetting !== null && loadedSetting.hasOwnProperty('key')) {
+                // New format already exists in storage
+                currentShortcutSettings[actionName] = {
+                    enabled: loadedSetting.hasOwnProperty('enabled') ? loadedSetting.enabled : defaultConfig.defaultEnabled,
+                    key: loadedSetting.key,
+                    // isCustom is not strictly needed by content_script, but good to keep structure consistent if ever logged
+                    isCustom: loadedSetting.isCustom || (loadedSetting.key !== defaultConfig.defaultKey)
+                };
+            } else if (typeof loadedSetting === 'boolean') {
+                // Old format (just enabled status) - migrate
+                currentShortcutSettings[actionName] = {
+                    enabled: loadedSetting,
+                    key: defaultConfig.defaultKey,
+                    isCustom: false
+                };
+            } else {
+                // No setting found, use defaults from DEFAULT_SHORTCUT_SETTINGS_CONFIG
+                currentShortcutSettings[actionName] = {
+                    enabled: defaultConfig.defaultEnabled,
+                    key: defaultConfig.defaultKey,
+                    isCustom: false
+                };
+            }
         });
 
         const currentHostname = window.location.hostname;

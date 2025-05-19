@@ -1,0 +1,19 @@
+{
+  "name": "vskeys",
+  "version": "1.0.0",
+  "description": "**Bring your favorite VS Code text editing shortcuts to any text field on the web!**",
+  "main": "common.js",
+  "scripts": {
+    "test": "jest"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "jest": {
+    "testEnvironment": "jsdom"
+  },
+  "devDependencies": {
+    "jest": "^27.5.1",
+    "jest-chrome": "^0.8.0"
+  }
+}

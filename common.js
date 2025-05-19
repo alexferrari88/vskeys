@@ -35,33 +35,48 @@ const DEFAULT_SHORTCUT_SETTINGS_CONFIG = {
 };
 
 function parseKeyString(keyString) {
-    // Check if it's a chorded key string
-    const chordParts = keyString.split(/\s+/); // Split by one or more spaces
-    if (chordParts.length > 1 && chordParts[0].includes('+')) { // Heuristic: "Ctrl+K C" or "Ctrl+K Ctrl+C"
-        // For now, this function primarily parses single key combinations.
-        // Chord parsing is implicitly handled by chordPrefix/chordKey in config.
-        // This part is more for future-proofing if we parse full chord strings here.
+    // Step 0: Handle exact single space input first.
+    if (keyString === " ") {
+        return { ctrl: false, shift: false, alt: false, meta: false, key: 'space' };
     }
 
-    const parts = (keyString.split(/\s+/)[0] || keyString).split('+').map(p => p.trim().toLowerCase());
+    // Step 1: Trim leading/trailing whitespace for all other cases.
+    let normalized = keyString.trim();
+
+    if (normalized === "") {
+        return { ctrl: false, shift: false, alt: false, meta: false, key: '' };
+    }
+
+    // Step 2: Normalize spacing around '+' signs. "CTRL + c" -> "CTRL+c"
+    // This also handles cases like "Ctrl +", reducing them to "Ctrl+"
+    normalized = normalized.replace(/\s*\+\s*/g, '+');
+
+
+    // Step 3: Take only the first part if it's a chord (e.g., "Ctrl+K" from "Ctrl+K C").
+    const chordParts = normalized.split(/\s+/);
+    const keyComboToParse = chordParts[0].toLowerCase(); // "ctrl+k", "ctrl+c"
+
+    // Step 4: Split the key combination by '+' to identify modifiers and the main key.
+    // Filter out empty parts that can arise from "Ctrl++" or a trailing "+" like in "Ctrl+"
+    const parts = keyComboToParse.split('+').filter(p => p !== "");
+
     const result = {
         ctrl: parts.includes('ctrl'),
         shift: parts.includes('shift'),
         alt: parts.includes('alt'),
-        meta: parts.includes('meta'), // Specifically for Mac Cmd if 'meta' is used in keyString
-        key: parts.filter(p => !['ctrl', 'shift', 'alt', 'meta'].includes(p)).pop() || '' // Get the last non-modifier part as key
+        meta: parts.includes('meta'),
+        key: parts.filter(p => !['ctrl', 'shift', 'alt', 'meta'].includes(p)).pop() || ''
     };
 
-    // Normalize key names from event.key to common representation
+    // Step 5: Apply key map for special key names.
+    // The 'space' key is already handled by the initial check.
     const keyMap = {
         'arrowdown': 'arrowdown', 'arrowup': 'arrowup', 'arrowleft': 'arrowleft', 'arrowright': 'arrowright',
         'enter': 'enter', 'escape': 'escape', 'tab': 'tab', 'backspace': 'backspace', 'delete': 'delete',
         'home': 'home', 'end': 'end', 'pageup': 'pageup', 'pagedown': 'pagedown',
-        '[': '[', ']': ']', '/': '/', '\\': '\\', // Keep symbols as is if they are the key
-        // Add more if event.key gives different values than what we store (e.g. ' ' for spacebar)
-        ' ': 'space' // Example: if we want to define 'Ctrl+Space'
+        '[': '[', ']': ']', '/': '/', '\\': '\\'
     };
-    result.key = keyMap[result.key] || result.key; // Use mapped key or original if not in map
+    result.key = keyMap[result.key] || result.key;
     return result;
 }
 
@@ -108,3 +123,13 @@ const DEFAULT_GLOBAL_SETTINGS = {
     showFeedback: true,
     feedbackDuration: 1500 // ms
 };
+
+// Export for testing purposes (Jest will pick this up)
+if (typeof module !== 'undefined' && module.exports) {
+    module.exports = {
+        DEFAULT_SHORTCUT_SETTINGS_CONFIG,
+        parseKeyString,
+        eventMatchesKey,
+        DEFAULT_GLOBAL_SETTINGS
+    };
+}

@@ -1,7 +1,17 @@
 // content_script.js - Main logic, event listeners, settings, keydown router
 
+// For Jest testing environment, ensure common.js constants are loaded.
+// In a real browser extension, common.js is loaded via manifest.json before this script.
+if (typeof DEFAULT_SHORTCUT_SETTINGS_CONFIG === 'undefined' || typeof DEFAULT_GLOBAL_SETTINGS === 'undefined') {
+    if (typeof require !== 'undefined') { // Check if require is available (Node.js/Jest environment)
+        const common = require('./common.js'); // Adjust path if necessary
+        global.DEFAULT_SHORTCUT_SETTINGS_CONFIG = common.DEFAULT_SHORTCUT_SETTINGS_CONFIG;
+        global.DEFAULT_GLOBAL_SETTINGS = common.DEFAULT_GLOBAL_SETTINGS;
+    }
+}
+
 let currentShortcutSettings = {};
-let currentGlobalSettings = { ...DEFAULT_GLOBAL_SETTINGS }; // From common.js
+let currentGlobalSettings = { ...(typeof DEFAULT_GLOBAL_SETTINGS !== 'undefined' ? DEFAULT_GLOBAL_SETTINGS : {}) };
 let isSiteDisabled = false;
 let chordState = null; // e.g., 'K_PENDING'
 let lastChordKeyTime = 0;
@@ -284,3 +294,27 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 
 loadSettingsAndInitialize();
 console.log("VS Keys Extension Loaded.");
+
+// Exports for testing
+if (typeof module !== 'undefined' && module.exports) {
+    module.exports = {
+        // Function to test
+        loadSettingsAndInitialize,
+        // Allow tests to get the current state of these variables
+        // Note: These are copies at the time of access for primitives,
+        // but objects would be references. For testing, we'll re-initialize state.
+        getCurrentShortcutSettings: () => currentShortcutSettings,
+        getCurrentGlobalSettings: () => currentGlobalSettings,
+        getIsSiteDisabled: () => isSiteDisabled,
+        // Allow tests to re-set internal state if needed, or set mock dependencies
+        _setInternalState: (newState) => {
+            if (newState.hasOwnProperty('currentShortcutSettings')) currentShortcutSettings = newState.currentShortcutSettings;
+            if (newState.hasOwnProperty('currentGlobalSettings')) currentGlobalSettings = newState.currentGlobalSettings;
+            if (newState.hasOwnProperty('isSiteDisabled')) isSiteDisabled = newState.isSiteDisabled;
+            // Potentially allow overriding IS_MAC, DEFAULT_SHORTCUT_SETTINGS_CONFIG etc. for pure unit tests later
+        },
+        // Expose constants/dependencies if they are not easily mockable via globals
+        // IS_MAC is derived from navigator.platform, which jest-chrome might mock.
+        // DEFAULT_SHORTCUT_SETTINGS_CONFIG and DEFAULT_GLOBAL_SETTINGS are expected globals from common.js
+    };
+}

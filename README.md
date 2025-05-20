@@ -8,8 +8,8 @@
 
 VS Keys is a Chrome extension that empowers you to use a wide range of Visual Studio Code's powerful text editing shortcuts directly within `<input>`, `<textarea>`, and `contenteditable` elements on any webpage. Boost your productivity and maintain a consistent editing workflow across your browser.
 
-[![GitHub stars](https://img.shields.io/github/stars/alexferrari88/vs-keys?style=social)](https://github.com/alexferrari88/vs-keys)
-[![GitHub license](https://img.shields.io/github/license/alexferrari88/vs-keys)](https://github.com/alexferrari88/vs-keys/blob/main/LICENSE)
+[![GitHub stars](https://img.shields.io/github/stars/alexferrari88/vskeys?style=social)](https://github.com/alexferrari88/vskeys)
+[![GitHub license](https://img.shields.io/github/license/alexferrari88/vskeys)](https://github.com/alexferrari88/vskeys/blob/main/LICENSE)
 <!-- Add this line once you publish to the Chrome Web Store -->
 <!-- [![Chrome Web Store](https://img.shields.io/chrome-web-store/v/YOUR_EXTENSION_ID_HERE?label=Chrome%20Web%20Store)](https://chrome.google.com/webstore/detail/YOUR_EXTENSION_ID_HERE) -->
 
@@ -85,7 +85,7 @@ Here's a list of commonly used shortcuts available by default (these can be togg
 ### Manual Installation (for Development or Testing)
 
 1.  **Clone or Download:**
-    *   Clone this repository: `git clone https://github.com/alexferrari88/vs-keys.git`
+    *   Clone this repository: `git clone https://github.com/alexferrari88/vskeys.git`
     *   Or, download the ZIP and extract it.
 2.  **Open Chrome Extensions:**
     *   Navigate to `chrome://extensions` in your Chrome browser.

@@ -23,6 +23,7 @@ VS Keys is a Chrome extension that empowers you to use a wide range of Visual St
 *   **Customizable:**
     *   Enable/disable individual shortcuts.
     *   Disable the extension on specific websites to avoid conflicts.
+    *   Modify the default shortcuts and make them your own.
     *   Configure visual feedback for actions.
 *   **Visual Feedback:** Get subtle on-screen confirmations for actions like "Line Copied" or "Text Uppercased".
 *   **Mac-Friendly Display:** Shows Mac-specific key symbols (⌘, ⌥, ⇧) in the options page if you're on a Mac.
@@ -50,7 +51,7 @@ Here's a list of commonly used shortcuts available by default (these can be togg
 
 **Selection & Navigation:**
 *   `Ctrl+L` / `⌘L`: Select current line
-*   `Home`: Smart Home (to first non-whitespace / line start)
+*   `Home`: Smart Home (to first non-whitespace/line start for Textarea/Input; native behavior for `contenteditable`)
 *   `Ctrl+D` / `⌘D`: Select word / Find next occurrence (single selection)
 
 **Indentation & Comments:**
@@ -65,7 +66,7 @@ Here's a list of commonly used shortcuts available by default (these can be togg
 *   `Ctrl+Alt+U` / `⌘⌥U`: Selection to UPPERCASE
 *   `Ctrl+Alt+L` / `⌘⌥L`: Selection to lowercase
 *   `Ctrl+Alt+T` / `⌘⌥T`: Selection to Title Case
-*   `Ctrl+K Ctrl+W` / `⌘K ⌘W`: Trim Trailing Whitespace
+*   `Ctrl+K Ctrl+W` / `⌘K ⌘W`: Trim Trailing Whitespace (Selection/Current Line; Textarea/Input only)
 
 *(For a complete list and to customize, check the extension's options page!)*
 
@@ -117,9 +118,9 @@ Please ensure your code follows the existing style and that any new features are
 
 ## Support VS Keys
 
-If you find VS Keys helpful and want to support its development, you can become a sponsor! Your support helps me dedicate more time to improving this extension and creating other useful open-source projects.
+If you find VS Keys helpful and want to support its development, you can become a sponsor! Your support helps me dedicate more time to improving this extension and creating [other useful open-source projects](https://github.com/alexferrari88).
 
-[![Sponsor alexferrari88 on GitHub Sponsors](https://img.shields.io/badge/Sponsor%20on%20GitHub-%E2%9D%A4-%23db61a2?style=flat&logo=github)](https://github.com/sponsors/alexferrari88)
+[![Sponsor me on GitHub Sponsors](https://img.shields.io/badge/Sponsor%20on%20GitHub-%E2%9D%A4-%23db61a2?style=flat&logo=github)](https://github.com/sponsors/alexferrari88)
 
 Every contribution, no matter the size, is greatly appreciated!
 

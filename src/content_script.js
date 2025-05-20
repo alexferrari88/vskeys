@@ -4,7 +4,7 @@
 // In a real browser extension, common.js is loaded via manifest.json before this script.
 if (typeof DEFAULT_SHORTCUT_SETTINGS_CONFIG === 'undefined' || typeof DEFAULT_GLOBAL_SETTINGS === 'undefined') {
     if (typeof require !== 'undefined') { // Check if require is available (Node.js/Jest environment)
-        const common = require('./common.js'); // Adjust path if necessary
+        const common = require('./src/common.js'); // Adjust path if necessary
         global.DEFAULT_SHORTCUT_SETTINGS_CONFIG = common.DEFAULT_SHORTCUT_SETTINGS_CONFIG;
         global.DEFAULT_GLOBAL_SETTINGS = common.DEFAULT_GLOBAL_SETTINGS;
     }

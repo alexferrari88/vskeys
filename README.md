@@ -1,7 +1,7 @@
 # VS Keys ⌨️✨
 
 <p align="center">
-  <img src="logo_2.png" alt="VS Keys Logo" width="200" />
+  <img src="icons/logo_2.png" alt="VS Keys Logo" width="200" />
 </p>
 
 **Bring your favorite VS Code text editing shortcuts to any text field on the web!**

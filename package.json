@@ -4,7 +4,8 @@
   "description": "**Bring your favorite VS Code text editing shortcuts to any text field on the web!**",
   "main": "common.js",
   "scripts": {
-    "test": "jest"
+    "test": "jest",
+    "build": "rm -rf dist && mkdir dist && cp manifest.json dist/ && cp -r src/ dist/ && cp -r icons/ dist/"
   },
   "keywords": [],
   "author": "",

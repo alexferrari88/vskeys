@@ -1,5 +1,9 @@
 # VS Keys ⌨️✨
 
+<p align="center">
+  <img src="logo_2.png" alt="VS Keys Logo" width="200" />
+</p>
+
 **Bring your favorite VS Code text editing shortcuts to any text field on the web!**
 
 VS Keys is a Chrome extension that empowers you to use a wide range of Visual Studio Code's powerful text editing shortcuts directly within `<input>`, `<textarea>`, and `contenteditable` elements on any webpage. Boost your productivity and maintain a consistent editing workflow across your browser.

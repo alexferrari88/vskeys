@@ -46,7 +46,8 @@ const {
     getCurrentShortcutSettings,
     getCurrentGlobalSettings,
     getIsSiteDisabled,
-    _setInternalState // Helper to reset state for tests
+    _setInternalState, // Helper to reset state for tests
+    determineEffectiveShortcutSettings // Import the new function
 } = require('../content_script.js');
 
 
@@ -212,6 +213,126 @@ describe('content_script.js', () => {
             });
             loadSettingsAndInitialize();
             expect(getIsSiteDisabled()).toBe(false);
+        });
+    });
+
+    describe('determineEffectiveShortcutSettings', () => {
+        // Mock base global settings that would be derived from storage and defaults
+        const mockBaseGlobalSettings = {
+            'action1': { key: 'Ctrl+A', enabled: true, isCustom: false, isNowChord: false },
+            'action2': { key: 'Ctrl+B', enabled: true, isCustom: true, isNowChord: false },
+            'action3': { key: 'Ctrl+C', enabled: false, isCustom: false, isNowChord: false },
+            'actionChord1': { key: 'Ctrl+K C', enabled: true, isCustom: false, isNowChord: true },
+        };
+
+        // Mock DEFAULT_SHORTCUT_SETTINGS_CONFIG for fallback if an action isn't in mockBaseGlobalSettings
+        // (though determineEffectiveShortcutSettings primarily iterates over DEFAULT_SHORTCUT_SETTINGS_CONFIG)
+        const originalDefaultConfig = { ...DEFAULT_SHORTCUT_SETTINGS_CONFIG };
+        beforeAll(() => {
+            // Ensure DEFAULT_SHORTCUT_SETTINGS_CONFIG has the actions we test against
+            // This is a simplified version for testing this function
+            global.DEFAULT_SHORTCUT_SETTINGS_CONFIG = {
+                'action1': { defaultKey: 'Ctrl+A', defaultEnabled: true, description: 'Action 1', category: 'Test' },
+                'action2': { defaultKey: 'Ctrl+X', defaultEnabled: true, description: 'Action 2', category: 'Test' }, // Default key different from global custom
+                'action3': { defaultKey: 'Ctrl+C', defaultEnabled: true, description: 'Action 3', category: 'Test' }, // Default enabled different
+                'action4': { defaultKey: 'Ctrl+D', defaultEnabled: true, description: 'Action 4', category: 'Test' }, // Action not in baseGlobal
+                'actionChord1': { defaultKey: 'Ctrl+K C', defaultEnabled: true, description: 'Action Chord 1', category: 'Test', chordPrefix: 'Ctrl+K' },
+                'actionChord2': { defaultKey: 'Ctrl+J J', defaultEnabled: true, description: 'Action Chord 2', category: 'Test', chordPrefix: 'Ctrl+J' },
+            };
+        });
+
+        afterAll(() => {
+            global.DEFAULT_SHORTCUT_SETTINGS_CONFIG = originalDefaultConfig; // Restore
+        });
+
+        it('should return global settings if no site overrides match', () => {
+            const siteOverrides = { 'another.com': { 'action1': { key: 'Alt+A' } } };
+            const effective = determineEffectiveShortcutSettings(mockBaseGlobalSettings, siteOverrides, 'example.com');
+            expect(effective['action1'].key).toBe('Ctrl+A');
+            expect(effective['action1'].enabled).toBe(true);
+            expect(effective['action2'].key).toBe('Ctrl+B'); // Global custom key
+        });
+
+        it('should apply exact hostname match for key override', () => {
+            const siteOverrides = { 'example.com': { 'action1': { key: 'Alt+X' } } };
+            const effective = determineEffectiveShortcutSettings(mockBaseGlobalSettings, siteOverrides, 'example.com');
+            expect(effective['action1'].key).toBe('Alt+X');
+            expect(effective['action1'].enabled).toBe(true); // Enabled state from global
+        });
+
+        it('should apply exact hostname match for enabled override', () => {
+            const siteOverrides = { 'example.com': { 'action1': { enabled: false } } };
+            const effective = determineEffectiveShortcutSettings(mockBaseGlobalSettings, siteOverrides, 'example.com');
+            expect(effective['action1'].key).toBe('Ctrl+A'); // Key from global
+            expect(effective['action1'].enabled).toBe(false);
+        });
+
+        it('should apply exact hostname match for both key and enabled override', () => {
+            const siteOverrides = { 'example.com': { 'action2': { key: 'Alt+Y', enabled: false } } };
+            const effective = determineEffectiveShortcutSettings(mockBaseGlobalSettings, siteOverrides, 'example.com');
+            expect(effective['action2'].key).toBe('Alt+Y');
+            expect(effective['action2'].enabled).toBe(false);
+        });
+
+        it('should apply wildcard hostname match if no exact match', () => {
+            const siteOverrides = { '*.example.com': { 'action1': { key: 'Shift+S' } } };
+            const effective = determineEffectiveShortcutSettings(mockBaseGlobalSettings, siteOverrides, 'sub.example.com');
+            expect(effective['action1'].key).toBe('Shift+S');
+        });
+        
+        it('should apply root domain wildcard match if no exact match', () => {
+            const siteOverrides = { '*.example.com': { 'action1': { key: 'Shift+S' } } };
+            const effective = determineEffectiveShortcutSettings(mockBaseGlobalSettings, siteOverrides, 'example.com');
+            expect(effective['action1'].key).toBe('Shift+S');
+        });
+
+        it('should prioritize exact hostname match over wildcard match', () => {
+            const siteOverrides = {
+                '*.example.com': { 'action1': { key: 'WildcardKey' } },
+                'sub.example.com': { 'action1': { key: 'ExactKey' } }
+            };
+            const effective = determineEffectiveShortcutSettings(mockBaseGlobalSettings, siteOverrides, 'sub.example.com');
+            expect(effective['action1'].key).toBe('ExactKey');
+        });
+
+        it('should handle action not present in baseGlobalSettings but in DEFAULT_CONFIG (uses default then override)', () => {
+            const siteOverrides = { 'example.com': { 'action4': { key: 'Ctrl+E', enabled: false } } };
+            const effective = determineEffectiveShortcutSettings(mockBaseGlobalSettings, siteOverrides, 'example.com');
+            expect(effective['action4'].key).toBe('Ctrl+E');
+            expect(effective['action4'].enabled).toBe(false);
+        });
+        
+        it('should correctly update isNowChord if site override changes key structure', () => {
+            const siteOverrides = {
+                'example.com': {
+                    'action1': { key: 'Ctrl+K K' }, // Was not chord, becomes chord
+                    'actionChord1': { key: 'Ctrl+Z' } // Was chord, becomes not chord
+                }
+            };
+            const effective = determineEffectiveShortcutSettings(mockBaseGlobalSettings, siteOverrides, 'example.com');
+            expect(effective['action1'].isNowChord).toBe(true);
+            expect(effective['actionChord1'].isNowChord).toBe(false);
+        });
+
+        it('should use global key and enabled if site override for action is empty object', () => {
+            const siteOverrides = { 'example.com': { 'action1': {} } }; // Empty override
+            const effective = determineEffectiveShortcutSettings(mockBaseGlobalSettings, siteOverrides, 'example.com');
+            expect(effective['action1'].key).toBe(mockBaseGlobalSettings['action1'].key);
+            expect(effective['action1'].enabled).toBe(mockBaseGlobalSettings['action1'].enabled);
+        });
+        
+        it('should correctly apply overrides for multiple actions on the same site', () => {
+            const siteOverrides = {
+                'example.com': {
+                    'action1': { key: 'Numpad1', enabled: false },
+                    'action3': { enabled: true } // action3 is globally false
+                }
+            };
+            const effective = determineEffectiveShortcutSettings(mockBaseGlobalSettings, siteOverrides, 'example.com');
+            expect(effective['action1'].key).toBe('Numpad1');
+            expect(effective['action1'].enabled).toBe(false);
+            expect(effective['action3'].key).toBe(mockBaseGlobalSettings['action3'].key); // Key from global
+            expect(effective['action3'].enabled).toBe(true); // Enabled by site
         });
     });
 });

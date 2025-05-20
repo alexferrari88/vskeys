@@ -25,9 +25,12 @@ VS Keys is a Chrome extension that empowers you to use a wide range of Visual St
     *   And more!
 *   **Works Everywhere:** Enhances standard input fields, textareas, and rich text editors using `contenteditable`.
 *   **Customizable:**
-    *   Enable/disable individual shortcuts.
-    *   Disable the extension on specific websites to avoid conflicts.
-    *   Modify the default shortcuts and make them your own.
+    *   Enable/disable individual shortcuts globally.
+    *   Modify the default global shortcuts and make them your own.
+    *   **Per-Site Customization (New!):**
+        *   Disable or modify specific shortcuts on a per-website basis (e.g., keep "Copy Line" enabled globally but disable it on `github.com`, or change its key just for `docs.google.com`).
+        *   This allows fine-grained control to prevent conflicts with website-native shortcuts while keeping the extension active.
+    *   Disable the entire extension on specific websites (global disable list).
     *   Configure visual feedback for actions.
 *   **Visual Feedback:** Get subtle on-screen confirmations for actions like "Line Copied" or "Text Uppercased".
 *   **Mac-Friendly Display:** Shows Mac-specific key symbols (⌘, ⌥, ⇧) in the options page if you're on a Mac.
@@ -102,8 +105,15 @@ Here's a list of commonly used shortcuts available by default (these can be togg
 Once installed, VS Keys will automatically be active on web pages. Simply focus an editable text field and use your familiar VS Code shortcuts!
 
 *   **Accessing Options:** Click the VS Keys icon in your Chrome toolbar (or find it in the Extensions menu) to open the settings page. Here you can:
-    *   Toggle individual shortcuts on or off.
-    *   Add websites where you want VS Keys to be disabled.
+    *   Toggle individual shortcuts on or off (these are your global defaults).
+    *   Modify the keybindings for these global default shortcuts.
+    *   **Manage Per-Site Configurations:**
+        *   Enter a website hostname (e.g., `yourproject.app.com` or `*.github.com`).
+        *   For that specific site, you can then:
+            *   Disable individual shortcuts.
+            *   Set a custom keybinding for any shortcut, overriding the global default just for that site.
+            *   Reset site-specific changes to use global defaults.
+    *   Add websites to a global "Disabled Websites" list where VS Keys will be completely inactive.
     *   Configure visual feedback settings.
 
 ## Contributing

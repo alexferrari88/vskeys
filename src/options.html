@@ -76,6 +76,30 @@
             </div>
         </div>
 
+<div class="setting-group">
+            <h2>Per-Site Shortcut Configuration</h2>
+            <p>Customize or disable shortcuts for specific websites (e.g., <code>github.com</code>, <code>*.google.com</code>). Settings here override global defaults for the specified site.</p>
+            <div>
+                <input type="text" id="siteOverrideHostname" placeholder="Enter hostname (e.g., example.com)">
+                <button id="manageSiteOverrides">Manage Site Config</button>
+            </div>
+            <div id="siteOverridesManager" style="display: none; margin-top: 15px; border: 1px solid #ddd; padding: 15px; border-radius: 4px;">
+                <h3 id="editingSiteHostname" style="margin-top:0;"></h3>
+                <p><em>Settings below apply only to <strong id="activeSiteOverrideHostname"></strong>. Unchanged shortcuts will use global settings.</em></p>
+                <div id="siteSpecificShortcutsList">
+                    <!-- Site-specific shortcuts will be populated here -->
+                </div>
+                <button id="saveSiteOverrides" style="margin-top:10px;">Apply Changes for This Site</button>
+                <button id="removeSiteOverrides" style="margin-top:10px; background-color: #dc3545;">Remove All Config for This Site</button>
+                <button id="closeSiteOverridesManager" style="margin-top:10px; background-color: #6c757d;">Close Site Manager</button>
+            </div>
+            <div id="configuredSitesListContainer" style="margin-top: 15px;">
+                <h4>Currently Configured Sites:</h4>
+                <ul id="configuredSitesList" style="list-style-type: none; padding: 0;">
+                    <!-- List of sites with overrides will appear here, e.g., <li>site.com <button>Edit</button> <button>Delete</button></li> -->
+                </ul>
+            </div>
+        </div>
         <button id="saveSettings">Save Settings</button>
         <div id="statusMessage" class="status"></div>
     </div>

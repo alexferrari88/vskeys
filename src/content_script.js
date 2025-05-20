@@ -10,8 +10,9 @@ if (typeof DEFAULT_SHORTCUT_SETTINGS_CONFIG === 'undefined' || typeof DEFAULT_GL
     }
 }
 
-let currentShortcutSettings = {};
+let currentShortcutSettings = {}; // This will store the *effective* settings for the current page
 let currentGlobalSettings = { ...(typeof DEFAULT_GLOBAL_SETTINGS !== 'undefined' ? DEFAULT_GLOBAL_SETTINGS : {}) };
+let currentSiteOverrides = {}; // Stores all site overrides { hostname: { actionName: { enabled?, key? } } }
 let isSiteDisabled = false;
 let chordState = null; // e.g., 'K_PENDING'
 let lastChordKeyTime = 0;
@@ -210,47 +211,104 @@ document.addEventListener('paste', (event) => {
     }, 0);
 }, true); // Capture phase
 
+function determineEffectiveShortcutSettings(baseGlobalSettings, siteOverrides, hostname) {
+    const effectiveSettings = {};
+    const currentHostname = hostname.toLowerCase();
+
+    // Find applicable site-specific rules (exact match first, then wildcard)
+    let siteRule = null;
+    if (siteOverrides[currentHostname]) {
+        siteRule = siteOverrides[currentHostname];
+    } else {
+        const parts = currentHostname.split('.');
+        while (parts.length > 1) {
+            parts.shift();
+            const wildcardHostname = `*.${parts.join('.')}`;
+            if (siteOverrides[wildcardHostname]) {
+                siteRule = siteOverrides[wildcardHostname];
+                break;
+            }
+        }
+    }
+
+    Object.keys(DEFAULT_SHORTCUT_SETTINGS_CONFIG).forEach(actionName => {
+        const defaultConfig = DEFAULT_SHORTCUT_SETTINGS_CONFIG[actionName];
+        const globalSettingForAction = baseGlobalSettings[actionName] || {
+            enabled: defaultConfig.defaultEnabled,
+            key: defaultConfig.defaultKey,
+            isCustom: false, // This 'isCustom' is about global customization, not site-specific
+            isNowChord: defaultConfig.defaultKey.includes(' ')
+        };
+
+        let effectiveKey = globalSettingForAction.key;
+        let effectiveEnabled = globalSettingForAction.enabled;
+        let isNowChord = globalSettingForAction.isNowChord; // Start with global chord status
+
+        if (siteRule && siteRule[actionName]) {
+            const siteActionOverride = siteRule[actionName];
+            if (siteActionOverride.hasOwnProperty('key')) {
+                effectiveKey = siteActionOverride.key;
+                // If site overrides key, re-evaluate chord status based on the new key
+                isNowChord = effectiveKey.includes(' ');
+            }
+            if (siteActionOverride.hasOwnProperty('enabled')) {
+                effectiveEnabled = siteActionOverride.enabled;
+            }
+        }
+        
+        effectiveSettings[actionName] = {
+            enabled: effectiveEnabled,
+            key: effectiveKey,
+            // 'isCustom' and 'isNowChord' for the content script primarily relate to the *final effective key*.
+            // The 'isCustom' from global settings isn't directly used here for behavior, but for display in options.
+            isNowChord: isNowChord,
+            // We don't strictly need 'isCustom' in content_script if behavior only depends on 'key' and 'enabled'.
+            // It's more for the options page UI.
+        };
+    });
+    return effectiveSettings;
+}
+
+
 function loadSettingsAndInitialize() {
-    chrome.storage.sync.get(['shortcutSettings', 'disabledSites', 'globalSettings'], (data) => {
-        const loadedShortcutSettingsFromStorage = data.shortcutSettings || {};
+    chrome.storage.sync.get(['shortcutSettings', 'disabledSites', 'globalSettings', 'siteOverrides'], (data) => {
+        const loadedGlobalShortcutSettingsFromStorage = data.shortcutSettings || {};
         const loadedDisabledSites = data.disabledSites || [...DEFAULT_GLOBAL_SETTINGS.disabledSites];
         currentGlobalSettings = { ...DEFAULT_GLOBAL_SETTINGS, ...(data.globalSettings || {}) };
+        currentSiteOverrides = data.siteOverrides || {}; // Load all site overrides
 
-        // Initialize currentShortcutSettings for content script
-        currentShortcutSettings = {};
-
+        // First, build the complete global settings map (currentSettings used to be this)
+        const baseGlobalSettings = {};
         Object.keys(DEFAULT_SHORTCUT_SETTINGS_CONFIG).forEach(actionName => {
             const defaultConfig = DEFAULT_SHORTCUT_SETTINGS_CONFIG[actionName];
-            const loadedSetting = loadedShortcutSettingsFromStorage[actionName];
+            const loadedGlobalSetting = loadedGlobalShortcutSettingsFromStorage[actionName];
 
-            if (typeof loadedSetting === 'object' && loadedSetting !== null && loadedSetting.hasOwnProperty('key')) {
-                // New format already exists in storage
-                currentShortcutSettings[actionName] = {
-                    enabled: loadedSetting.hasOwnProperty('enabled') ? loadedSetting.enabled : defaultConfig.defaultEnabled,
-                    key: loadedSetting.key,
-                    isCustom: loadedSetting.isCustom || (loadedSetting.key !== defaultConfig.defaultKey),
-                    isNowChord: loadedSetting.hasOwnProperty('isNowChord') ? loadedSetting.isNowChord : loadedSetting.key.includes(' ') // Store this
+            if (typeof loadedGlobalSetting === 'object' && loadedGlobalSetting !== null && loadedGlobalSetting.hasOwnProperty('key')) {
+                baseGlobalSettings[actionName] = {
+                    enabled: loadedGlobalSetting.hasOwnProperty('enabled') ? loadedGlobalSetting.enabled : defaultConfig.defaultEnabled,
+                    key: loadedGlobalSetting.key,
+                    isCustom: loadedGlobalSetting.isCustom || (loadedGlobalSetting.key !== defaultConfig.defaultKey),
+                    isNowChord: loadedGlobalSetting.hasOwnProperty('isNowChord') ? loadedGlobalSetting.isNowChord : loadedGlobalSetting.key.includes(' ')
                 };
-            } else if (typeof loadedSetting === 'boolean') {
-                // Old format (just enabled status) - migrate
-                currentShortcutSettings[actionName] = {
-                    enabled: loadedSetting,
+            } else if (typeof loadedGlobalSetting === 'boolean') { // Old format migration
+                baseGlobalSettings[actionName] = {
+                    enabled: loadedGlobalSetting,
                     key: defaultConfig.defaultKey,
                     isCustom: false,
-                    isNowChord: defaultConfig.defaultKey.includes(' ') // Derive from default
+                    isNowChord: defaultConfig.defaultKey.includes(' ')
                 };
-            } else {
-                // No setting found, use defaults from DEFAULT_SHORTCUT_SETTINGS_CONFIG
-                currentShortcutSettings[actionName] = {
+            } else { // No setting, use defaults
+                baseGlobalSettings[actionName] = {
                     enabled: defaultConfig.defaultEnabled,
                     key: defaultConfig.defaultKey,
                     isCustom: false,
-                    isNowChord: defaultConfig.defaultKey.includes(' ') // Derive from default
+                    isNowChord: defaultConfig.defaultKey.includes(' ')
                 };
             }
         });
-
+        
         const currentHostname = window.location.hostname;
+        // Determine if the entire extension is disabled for this site
         isSiteDisabled = loadedDisabledSites.some(sitePattern => {
             try {
                 if (sitePattern.startsWith('*.')) { 

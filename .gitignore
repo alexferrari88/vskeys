@@ -137,3 +137,6 @@ dist
 
 # Chrome Extension build output
 dist/
+
+# zip files
+*.zip

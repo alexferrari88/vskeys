@@ -5,7 +5,8 @@
   "main": "common.js",
   "scripts": {
     "test": "jest",
-    "build": "rm -rf dist && mkdir dist && cp manifest.json dist/ && cp -r src/ dist/ && cp -r icons/ dist/"
+    "build": "rm -rf dist && mkdir dist && cp manifest.json dist/ && cp -r src/ dist/ && cp -r icons/ dist/",
+    "zip": "zip -r vskeys.zip dist/"
   },
   "keywords": [],
   "author": "",

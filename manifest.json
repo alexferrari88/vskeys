@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
-  "name": "VS Code Shortcuts for Web",
-  "version": "1.1.1", 
+  "name": "VS Keys",
+  "version": "0.0.1", 
   "description": "Enables VS Code text editing shortcuts in browser text fields, with customization.",
   "permissions": [
     "clipboardRead",
@@ -30,7 +30,6 @@
     "default_title": "VS Code Shortcuts Settings"
   },
   "icons": {
-    "48": "icons/icon48.png",
     "128": "icons/icon128.png"
   }
 }

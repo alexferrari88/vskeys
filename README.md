@@ -1,7 +1,7 @@
 # VS Keys ⌨️✨
 
 <p align="center">
-  <img src="icons/logo_2.png" alt="VS Keys Logo" width="200" />
+  <img src="images/logo.png" alt="VS Keys Logo" width="200" />
 </p>
 
 **Bring your favorite VS Code text editing shortcuts to any text field on the web!**
@@ -90,14 +90,16 @@ Here's a list of commonly used shortcuts available by default (these can be togg
 1.  **Clone or Download:**
     *   Clone this repository: `git clone https://github.com/alexferrari88/vskeys.git`
     *   Or, download the ZIP and extract it.
-2.  **Open Chrome Extensions:**
+2.  **Build:**
+    *   Execute `npm run build` in the terminal.
+3.  **Open Chrome Extensions:**
     *   Navigate to `chrome://extensions` in your Chrome browser.
-3.  **Enable Developer Mode:**
+4.  **Enable Developer Mode:**
     *   Ensure the "Developer mode" toggle in the top-right corner is switched on.
-4.  **Load Unpacked:**
+5.  **Load Unpacked:**
     *   Click the "Load unpacked" button.
-    *   Select the directory where you cloned or extracted the extension files (the folder containing `manifest.json`).
-5.  **Pin the Extension (Optional):**
+    *   Select the `dist` directory created by the Build step.
+6.  **Pin the Extension (Optional):**
     *   Click the puzzle icon (Extensions) in the Chrome toolbar and pin VS Keys for easy access to its options.
 
 ## Usage

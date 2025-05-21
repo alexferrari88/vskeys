@@ -304,8 +304,6 @@ function handleCopyLineUpDown(element, direction, globalSettings) {
     showFeedbackMessage(`Line Copied ${direction}`, element, globalSettings);
 }
 
-function handleUndo(element, globalSettings) { document.execCommand('undo'); showFeedbackMessage("Undo", element, globalSettings); }
-function handleRedo(element, globalSettings) { document.execCommand('redo'); showFeedbackMessage("Redo", element, globalSettings); }
 
 function handleSelectLine(element, globalSettings) {
     if (element.tagName.toLowerCase() === 'input') {

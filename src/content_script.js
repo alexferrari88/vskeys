@@ -32,8 +32,6 @@ const shortcutActionHandlers = {
     'moveLineUp': (el, gs) => handleMoveLine(el, 'up', gs),
     'copyLineDown': (el, gs) => handleCopyLineUpDown(el, 'down', gs),
     'copyLineUp': (el, gs) => handleCopyLineUpDown(el, 'up', gs),
-    'undo': handleUndo,
-    'redo': handleRedo,
     'selectLine': handleSelectLine,
     'indentLine': (el, gs) => handleIndentSelection(el, 'indent', gs),
     'outdentLine': (el, gs) => handleIndentSelection(el, 'outdent', gs),

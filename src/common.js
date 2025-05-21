@@ -12,8 +12,6 @@ const DEFAULT_SHORTCUT_SETTINGS_CONFIG = {
     'moveLineUp': { defaultKey: 'Alt+ArrowUp', description: 'Move Line Up', category: 'Line Operations', defaultEnabled: true },
     'copyLineDown': { defaultKey: 'Shift+Alt+ArrowDown', description: 'Copy Line Down', category: 'Line Operations', defaultEnabled: true },
     'copyLineUp': { defaultKey: 'Shift+Alt+ArrowUp', description: 'Copy Line Up', category: 'Line Operations', defaultEnabled: true },
-    'undo': { defaultKey: 'Ctrl+Z', description: 'Undo (Browser Native)', category: 'Editing', defaultEnabled: true, isNative: true }, // Mark native ones if we just ensure event pass-through or special handling
-    'redo': { defaultKey: 'Ctrl+Y', description: 'Redo (Browser Native)', category: 'Editing', defaultEnabled: true, isNative: true },
     'selectLine': { defaultKey: 'Ctrl+L', description: 'Select current line', category: 'Selection', defaultEnabled: true },
     'indentLine': { defaultKey: 'Ctrl+]', description: 'Indent Line/Selection', category: 'Indentation', defaultEnabled: true },
     'outdentLine': { defaultKey: 'Ctrl+[', description: 'Outdent Line/Selection', category: 'Indentation', defaultEnabled: true },

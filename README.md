@@ -44,8 +44,6 @@ Here's a list of commonly used shortcuts available by default (these can be togg
 *   `Ctrl+X` / `⌘X`: Cut line (empty selection) / Cut selection
 *   `Ctrl+C` / `⌘C`: Copy line (empty selection) / Copy selection
 *   `Ctrl+V` / `⌘V`: Paste (with VS Code-like line pasting behavior)
-*   `Ctrl+Z` / `⌘Z`: Undo (Browser Native)
-*   `Ctrl+Y` / `⌘Y`: Redo (Browser Native)
 
 **Line Operations:**
 *   `Ctrl+Shift+K` / `⌘⇧K`: Delete Line

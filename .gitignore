@@ -140,3 +140,7 @@ dist/
 
 # zip files
 *.zip
+
+# Playwright related
+test-results/*
+playwright-report/*

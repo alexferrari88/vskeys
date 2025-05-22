@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>VS Keys Test Page</title>
+    <style>
+        body { font-family: sans-serif; padding: 20px; }
+        .container { margin-bottom: 20px; }
+        label { display: block; margin-bottom: 5px; font-weight: bold; }
+        input[type="text"], textarea {
+            width: 90%;
+            padding: 8px;
+            margin-bottom: 10px;
+            border: 1px solid #ccc;
+            font-size: 14px;
+        }
+        textarea { height: 100px; }
+        [contenteditable="true"] {
+            width: 90%;
+            height: 100px;
+            border: 1px solid #ccc;
+            padding: 8px;
+            overflow-y: auto;
+            background-color: white;
+        }
+        .feedback-test {
+            margin-top: 20px;
+            padding: 10px;
+            border: 1px dashed blue;
+        }
+    </style>
+</head>
+<body>
+    <h1>VS Keys Test Page</h1>
+
+    <div class="container">
+        <label for="input-field">Input Field:</label>
+        <input type="text" id="input-field" value="Hello input world.">
+    </div>
+
+    <div class="container">
+        <label for="textarea-field">Textarea Field:</label>
+        <textarea id="textarea-field">Hello textarea world.
+Second line in textarea.
+Third line here.</textarea>
+    </div>
+
+    <div class="container">
+        <label for="contenteditable-field">Contenteditable Field:</label>
+        <div id="contenteditable-field" contenteditable="true">Hello contenteditable world.<br>Second line editable.<br>Third line also.</div>
+    </div>
+
+    <div class="container">
+        <label for="input-empty">Empty Input Field:</label>
+        <input type="text" id="input-empty">
+    </div>
+
+    <div class="container">
+        <label for="textarea-empty">Empty Textarea Field:</label>
+        <textarea id="textarea-empty"></textarea>
+    </div>
+
+    <div class="container">
+        <label for="contenteditable-empty">Empty Contenteditable Field:</label>
+        <div id="contenteditable-empty" contenteditable="true"></div>
+    </div>
+
+     <div class="container">
+        <label for="textarea-multiline">Multiline Textarea for Advanced Ops:</label>
+        <textarea id="textarea-multiline">Alpha line one
+Beta line two
+Gamma line three
+Delta line four
+Epsilon line five</textarea>
+    </div>
+
+
+    <div class="feedback-test" id="feedback-container">
+        Feedback messages will appear near focused elements or globally.
+    </div>
+
+</body>
+</html>

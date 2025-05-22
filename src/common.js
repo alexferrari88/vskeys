@@ -25,7 +25,6 @@ const DEFAULT_SHORTCUT_SETTINGS_CONFIG = {
     'removeLineCommentChord': { defaultKey: 'Ctrl+K Ctrl+U', description: 'Remove Line Comment', category: 'Comments', defaultEnabled: true, chordPrefix: 'Ctrl+K', chordKey: 'U' },
     'trimTrailingWhitespaceChord': { defaultKey: 'Ctrl+K Ctrl+W', description: 'Trim Trailing Whitespace (Selection/Current Line)', category: 'Whitespace', defaultEnabled: true, chordPrefix: 'Ctrl+K', chordKey: 'W' },
 
-    // New features from user request
     'toUpperCase': { defaultKey: 'Ctrl+Alt+U', description: 'Selection to UPPERCASE', category: 'Case Transformation', defaultEnabled: true },
     'toLowerCase': { defaultKey: 'Ctrl+Alt+L', description: 'Selection to lowercase', category: 'Case Transformation', defaultEnabled: true },
     'toTitleCase': { defaultKey: 'Ctrl+Alt+T', description: 'Selection to Title Case', category: 'Case Transformation', defaultEnabled: true },

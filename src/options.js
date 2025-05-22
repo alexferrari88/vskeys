@@ -45,13 +45,14 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- Helper Functions ---
     function displayStatus(message, success = true) {
         statusMessage.textContent = message;
-        statusMessage.style.backgroundColor = success ? '#d4edda' : '#f8d7da';
-        statusMessage.style.color = success ? '#155724' : '#721c24';
-        statusMessage.style.borderColor = success ? '#c3e6cb' : '#f5c6cb';
+        // Remove old classes, add new ones
+        statusMessage.classList.remove('success', 'error');
+        statusMessage.classList.add(success ? 'success' : 'error');
+        
         statusMessage.style.display = 'block';
         setTimeout(() => {
             statusMessage.style.display = 'none';
-        }, 3000);
+        }, 3000); // Or a bit longer for errors: success ? 3000 : 5000
     }
 
     function getDisplayKey(keyString) {
@@ -132,18 +133,15 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!document.getElementById('resetAllShortcuts')) {
             const resetButton = document.createElement('button');
             resetButton.id = 'resetAllShortcuts';
-            resetButton.textContent = 'Reset All Shortcuts to Defaults';
-            resetButton.style.marginTop = '20px';
-            resetButton.style.marginRight = '5px';
+            resetButton.textContent = 'Reset All Global Shortcuts to Defaults';
+            resetButton.className = 'secondary'; // Optional: style as secondary
+            resetButton.style.marginTop = '20px'; // Add some space above it
             
-            // Insert before the save button or at the end of the shortcut list container
-            const saveSettingsButton = document.getElementById('saveSettings');
-            if (saveSettingsButton) {
-                saveSettingsButton.parentNode.insertBefore(resetButton, saveSettingsButton);
-            } else {
-                shortcutsListContainer.parentNode.appendChild(resetButton);
+            // Append it to the container for global shortcuts
+            const globalShortcutsContainer = document.getElementById('shortcutsListContainer');
+            if (globalShortcutsContainer) {
+                globalShortcutsContainer.appendChild(resetButton);
             }
-            // Event listener for global reset will be added now
             resetButton.addEventListener('click', resetAllShortcutsToDefault);
         }
         // Add event listeners for individual reset buttons

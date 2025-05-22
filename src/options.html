@@ -3,121 +3,389 @@
 <head>
     <title>VS Code Shortcuts Settings</title>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <style>
-        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen-Sans, Ubuntu, Cantarell, "Helvetica Neue", sans-serif; padding: 10px 20px; background-color: #f4f4f4; color: #333; line-height: 1.5; }
-        h1, h2 { color: #005a9c; }
-        .container { max-width: 700px; margin: auto; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 15px rgba(0,0,0,0.1); }
-        .setting-group { margin-bottom: 25px; padding-bottom: 15px; border-bottom: 1px solid #eee; }
-        .setting-group:last-child { border-bottom: none; }
-        label { display: block; margin-bottom: 8px; font-weight: bold; }
-        .shortcut-item { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; padding: 8px; border-radius: 4px; background-color: #f9f9f9; transition: background-color 0.2s ease-in-out; }
-        .shortcut-item:hover { background-color: #f0f0f0; }
-        .shortcut-item span { flex-grow: 1; margin-left: 10px; }
+        :root {
+            --primary-color: #0078d4;
+            --primary-hover-color: #005a9c;
+            --danger-color: #dc3545;
+            --danger-hover-color: #c82333;
+            --secondary-color: #6c757d;
+            --secondary-hover-color: #5a6268;
+            --light-gray-color: #f8f9fa;
+            --medium-gray-color: #e9ecef;
+            --dark-gray-color: #ced4da;
+            --text-color: #343a40;
+            --border-radius: 4px;
+            --font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+        }
+
+        body {
+            font-family: var(--font-family);
+            padding: 20px;
+            background-color: var(--light-gray-color);
+            color: var(--text-color);
+            line-height: 1.6;
+            margin: 0;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 20px auto;
+            background: white;
+            padding: 25px 30px;
+            border-radius: calc(var(--border-radius) * 2);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        }
+
+        h1, h2, h3 {
+            color: var(--primary-color);
+            margin-top: 0;
+        }
+        h1 { font-size: 1.8em; margin-bottom: 20px; text-align: center; }
+        h2 { font-size: 1.4em; margin-bottom: 15px; padding-bottom: 8px; border-bottom: 2px solid var(--medium-gray-color); }
+        h3.category-title {
+            font-size: 1.15em;
+            margin-top: 25px;
+            margin-bottom: 12px;
+            color: var(--secondary-color);
+            border-bottom: 1px solid var(--dark-gray-color);
+            padding-bottom: 6px;
+        }
+         h3#editingSiteHostname {
+            font-size: 1.2em;
+            margin-bottom: 10px;
+            color: var(--primary-color);
+        }
+
+        .setting-group {
+            margin-bottom: 30px;
+            padding-bottom: 20px;
+            border-bottom: 1px solid var(--medium-gray-color);
+        }
+        .setting-group:last-of-type {
+            border-bottom: none;
+            margin-bottom: 0;
+            padding-bottom: 0;
+        }
+        .setting-group p {
+            margin-top: 0;
+            margin-bottom: 12px;
+            font-size: 0.95em;
+            color: #555;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 500;
+            font-size: 0.95em;
+        }
+
+        .shortcut-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+            padding: 10px 12px;
+            border-radius: var(--border-radius);
+            background-color: var(--light-gray-color);
+            border: 1px solid var(--medium-gray-color);
+            transition: background-color 0.2s ease-in-out;
+        }
+        .shortcut-item:hover {
+            background-color: #f0f3f5;
+        }
+
+        .shortcut-item .info {
+            display: flex;
+            align-items: center;
+            flex-grow: 1;
+            margin-right: 15px; /* Space before actions */
+        }
+
         .shortcut-item .keys {
             font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, Courier, monospace;
-            background-color: #e0e0e0;
-            color: #333;
-            padding: 3px 8px; /* Adjusted padding */
-            border-radius: 4px; /* Slightly more rounded */
-            border: 1px solid #ccc;
-            box-shadow: 0 1px 1px rgba(0,0,0,0.1);
-            margin-right: 10px;
-            /* min-width: 150px; /* Removed */
-            display: inline-flex; /* For alignment */
+            background-color: #d1d5db; /* Slightly darker kbd */
+            color: #1f2937;
+            padding: 4px 10px;
+            border-radius: var(--border-radius);
+            border: 1px solid #adb5bd;
+            box-shadow: 0 1px 1px rgba(0,0,0,0.05);
+            margin-right: 12px;
+            display: inline-flex;
             align-items: center;
-            justify-content: center; /* Center text */
-            text-align: center; /* Fallback */
+            justify-content: center;
+            text-align: center;
             font-size: 0.9em;
             white-space: nowrap;
+            min-width: 80px; /* Give some base width */
         }
-        input[type="checkbox"] { margin-left: 10px; transform: scale(1.2); cursor: pointer; }
-        input[type="text"], input[type="number"], textarea { width: calc(100% - 22px); padding: 10px; margin-bottom: 10px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; }
-        input[type="number"] { width: 80px !important; }
-        button { background-color: #0078d4; color: white; padding: 10px 15px; border: none; border-radius: 4px; cursor: pointer; font-size: 1em; transition: background-color 0.2s ease; }
-        button:hover { background-color: #005a9c; }
-        #disabledSitesList { list-style-type: none; padding: 0; }
-        #disabledSitesList li { background: #eee; padding: 5px 10px; margin-bottom: 5px; border-radius: 3px; display: flex; justify-content: space-between; align-items: center; }
-        #disabledSitesList button { background: #dc3545; font-size: 0.8em; padding: 3px 8px; }
-        .status { margin-top: 15px; padding: 10px; background-color: #d4edda; color: #155724; border: 1px solid #c3e6cb; border-radius: 4px; display: none; }
-        .category-title { font-size: 1.2em; margin-top: 20px; margin-bottom: 10px; color: #555; border-bottom: 1px solid #ddd; padding-bottom: 5px;}
-    .custom-indicator { font-weight: bold; color: #0078d4; margin-left: 3px; }
-    .shortcut-item .actions button { margin-left: 5px; padding: 3px 8px; font-size: 0.85em; }
-</style>
+         .shortcut-item .keys em { /* Styling for "Press key..." etc. */
+            font-style: normal;
+            color: var(--primary-color);
+        }
+
+        .shortcut-item .description {
+            flex-grow: 1;
+            font-size: 0.9em;
+        }
+         .shortcut-item .description small {
+            display: block;
+            font-size: 0.85em;
+            color: var(--secondary-color);
+            margin-top: 2px;
+        }
+
+        .shortcut-item .actions {
+            display: flex;
+            align-items: center;
+            flex-shrink: 0; /* Prevent actions from shrinking too much */
+        }
+        .shortcut-item .actions button {
+            margin-left: 6px;
+            padding: 5px 10px; /* smaller padding for action buttons */
+            font-size: 0.8em;
+        }
+
+        input[type="checkbox"] {
+            margin-left: 15px;
+            transform: scale(1.3);
+            cursor: pointer;
+            accent-color: var(--primary-color);
+        }
+
+        input[type="text"],
+        input[type="number"],
+        textarea {
+            width: 100%;
+            padding: 10px 12px;
+            margin-bottom: 12px;
+            border: 1px solid var(--dark-gray-color);
+            border-radius: var(--border-radius);
+            box-sizing: border-box;
+            font-size: 0.95em;
+            transition: border-color 0.2s ease, box-shadow 0.2s ease;
+        }
+        input[type="text"]:focus,
+        input[type="number"]:focus,
+        textarea:focus {
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 0.2rem rgba(0,120,212,.25);
+            outline: none;
+        }
+        input[type="number"] { width: 90px !important; }
+
+        button {
+            background-color: var(--primary-color);
+            color: white;
+            padding: 10px 18px;
+            border: none;
+            border-radius: var(--border-radius);
+            cursor: pointer;
+            font-size: 0.95em;
+            font-weight: 500;
+            transition: background-color 0.2s ease;
+            margin-right: 8px; /* Default margin for buttons */
+        }
+        button:hover { background-color: var(--primary-hover-color); }
+        button:last-of-type { margin-right: 0; }
+
+        button.secondary {
+            background-color: var(--secondary-color);
+        }
+        button.secondary:hover {
+            background-color: var(--secondary-hover-color);
+        }
+        button.danger {
+            background-color: var(--danger-color);
+        }
+        button.danger:hover {
+            background-color: var(--danger-hover-color);
+        }
+        button:disabled {
+            background-color: #adb5bd;
+            cursor: not-allowed;
+        }
+
+        #disabledSitesList, #configuredSitesList {
+            list-style-type: none;
+            padding: 0;
+            margin-top: 10px;
+        }
+        #disabledSitesList li, #configuredSitesList li {
+            background: var(--light-gray-color);
+            padding: 8px 12px;
+            margin-bottom: 6px;
+            border-radius: var(--border-radius);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border: 1px solid var(--medium-gray-color);
+            font-size: 0.9em;
+        }
+        #disabledSitesList li button, #configuredSitesList li button {
+            background: var(--danger-color);
+            font-size: 0.8em;
+            padding: 4px 8px;
+        }
+        #configuredSitesList li button.edit-site-override { /* Special style for edit button in configured list */
+             background: var(--secondary-color);
+             margin-right: 5px;
+        }
+
+
+        .status {
+            margin-top: 20px;
+            padding: 12px 15px;
+            border: 1px solid transparent;
+            border-radius: var(--border-radius);
+            display: none;
+            font-size: 0.95em;
+        }
+        .status.success {
+            background-color: #d1e7dd; color: #0f5132; border-color: #badbcc;
+        }
+        .status.error {
+            background-color: #f8d7da; color: #842029; border-color: #f5c2c7;
+        }
+
+        .custom-indicator {
+            font-weight: bold;
+            color: var(--primary-color);
+            margin-left: 4px;
+            font-size: 0.8em;
+            background-color: var(--medium-gray-color);
+            padding: 1px 4px;
+            border-radius: 3px;
+        }
+
+        /* Per-Site Configuration Specifics */
+        #siteOverridesManager {
+            margin-top: 20px;
+            border: 1px solid var(--dark-gray-color);
+            padding: 20px;
+            border-radius: var(--border-radius);
+            background-color: #fdfdfd; /* Slightly off-white to distinguish */
+        }
+        #siteOverridesManager p em {
+            font-size: 0.9em;
+            color: #555;
+        }
+        #configuredSitesListContainer h4 {
+            margin-top: 20px;
+            margin-bottom: 10px;
+            font-size: 1.1em;
+            color: var(--primary-color);
+        }
+        .flex-input-button { /* For inputs next to buttons */
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+        .flex-input-button input[type="text"] {
+            margin-bottom: 0; /* Reset margin as it's handled by gap */
+            flex-grow: 1;
+        }
+        .button-group { /* For groups of main action buttons */
+            margin-top: 20px;
+            display: flex;
+            flex-wrap: wrap; /* Allow buttons to wrap on smaller screens */
+            gap: 10px;
+        }
+
+    </style>
 </head>
 <body>
     <div class="container">
-        <h1>VS Code Shortcuts Settings</h1>
+        <h1>VS Keys Settings</h1>
 
         <div class="setting-group">
             <h2>General Settings</h2>
             <label class="shortcut-item">
-                <span>Show visual feedback for actions (e.g., "Line Copied")</span>
+                <span class="description">Show visual feedback for actions (e.g., "Line Copied")</span>
                 <input type="checkbox" id="showFeedbackEnabled">
             </label>
-            <label>
-                Feedback Duration (milliseconds):
+            <div style="margin-top: 10px;">
+                <label for="feedbackDuration">Feedback Duration (milliseconds):</label>
                 <input type="number" id="feedbackDuration" min="500" max="5000" step="100">
-            </label>
+            </div>
         </div>
 
         <div class="setting-group">
-            <h2>Global Activation Settings</h2>
-            <p>Configure how the extension is activated on a page.</p>
+            <h2>Global Activation</h2>
+            <p>Configure how and when VS Keys shortcuts are activated on a page.</p>
             <div class="shortcut-item">
-                <span style="flex-grow: 0; margin-right: 10px;">Extension Activation Shortcut:</span>
-                <kbd id="activationShortcutDisplay" class="keys">Ctrl+Shift+S</kbd>
-                <div class="actions" style="margin-left: auto;"> <!-- Push buttons to the right -->
+                <div class="info">
+                    <kbd id="activationShortcutDisplay" class="keys">Ctrl+Shift+S</kbd>
+                    <span class="description">Extension Activation Shortcut</span>
+                </div>
+                <div class="actions">
                     <button id="editActivationShortcut" class="edit-shortcut" title="Edit activation shortcut key">Edit</button>
-                    <button id="resetActivationShortcut" class="reset-shortcut" title="Reset to default" style="display:none;">Reset</button>
+                    <button id="resetActivationShortcut" class="reset-shortcut secondary" title="Reset to default" style="display:none;">Reset</button>
                 </div>
             </div>
-            <label style="margin-top: 15px;">
-                Warn after N incorrect activation attempts outside text fields:
-                <input type="number" id="incorrectActivationWarningThresholdInput" min="1" max="10" step="1" style="width: 60px; margin-left: 5px;">
-            </label>
+            <div style="margin-top: 15px;">
+                <label for="incorrectActivationWarningThresholdInput">Warn after N incorrect activation attempts (outside text fields):</label>
+                <input type="number" id="incorrectActivationWarningThresholdInput" min="1" max="10" step="1" style="width: 70px;">
+            </div>
         </div>
         
         <div class="setting-group">
             <h2>Disabled Websites</h2>
-            <p>Disable the extension on specific websites (e.g., <code>docs.google.com</code>, <code>*.github.com</code>). Enter one hostname/pattern per line or add individually.</p>
-            <input type="text" id="newDisabledSite" placeholder="example.com or *.example.com">
-            <button id="addDisabledSite">Add Site</button>
+            <p>Globally disable VS Keys on specific websites. Enter one hostname or pattern (e.g., <code>docs.google.com</code> or <code>*.github.com</code>).</p>
+            <div class="flex-input-button">
+                <input type="text" id="newDisabledSite" placeholder="example.com or *.example.com">
+                <button id="addDisabledSite">Add Site</button>
+            </div>
             <ul id="disabledSitesList"></ul>
         </div>
 
         <div class="setting-group">
-            <h2>Shortcut Toggles</h2>
-            <p>Enable or disable specific shortcuts.</p>
-            <div id="shortcutsList">
-                <!-- Shortcuts will be populated here by options.js -->
+            <h2>Global Shortcut Configuration</h2>
+            <p>Enable, disable, or customize the default keybindings for shortcuts. These are your global defaults.</p>
+            <div id="shortcutsListContainer"> <!-- Added a wrapper for reset all button -->
+                <div id="shortcutsList">
+                    <!-- Shortcuts will be populated here by options.js -->
+                </div>
+                 <!-- Global Reset Button will be added here by JS if it makes sense, or can be static -->
             </div>
         </div>
 
-<div class="setting-group">
+        <div class="setting-group">
             <h2>Per-Site Shortcut Configuration</h2>
-            <p>Customize or disable shortcuts for specific websites (e.g., <code>github.com</code>, <code>*.google.com</code>). Settings here override global defaults for the specified site.</p>
-            <div>
-                <input type="text" id="siteOverrideHostname" placeholder="Enter hostname (e.g., example.com)">
-                <button id="manageSiteOverrides">Manage Site Config</button>
+            <p>Customize or disable specific shortcuts for individual websites. Site-specific settings will override global defaults for that site.</p>
+            <div class="flex-input-button">
+                <input type="text" id="siteOverrideHostname" placeholder="Enter hostname (e.g., github.com, *.google.com)">
+                <button id="manageSiteOverrides">Configure Site</button>
             </div>
-            <div id="siteOverridesManager" style="display: none; margin-top: 15px; border: 1px solid #ddd; padding: 15px; border-radius: 4px;">
-                <h3 id="editingSiteHostname" style="margin-top:0;"></h3>
-                <p><em>Settings below apply only to <strong id="activeSiteOverrideHostname"></strong>. Unchanged shortcuts will use global settings.</em></p>
+
+            <div id="siteOverridesManager" style="display: none;">
+                <h3 id="editingSiteHostname"></h3>
+                <p><em>Settings below apply only to <strong id="activeSiteOverrideHostname"></strong>. Unchanged shortcuts will inherit from global settings.</em></p>
                 <div id="siteSpecificShortcutsList">
                     <!-- Site-specific shortcuts will be populated here -->
                 </div>
-                <button id="saveSiteOverrides" style="margin-top:10px;">Apply Changes for This Site</button>
-                <button id="removeSiteOverrides" style="margin-top:10px; background-color: #dc3545;">Remove All Config for This Site</button>
-                <button id="closeSiteOverridesManager" style="margin-top:10px; background-color: #6c757d;">Close Site Manager</button>
+                <div class="button-group" style="margin-top: 15px;">
+                    <button id="saveSiteOverrides">Apply Changes for This Site</button>
+                    <button id="removeSiteOverrides" class="danger">Remove All Config for This Site</button>
+                    <button id="closeSiteOverridesManager" class="secondary">Close Site Manager</button>
+                </div>
             </div>
-            <div id="configuredSitesListContainer" style="margin-top: 15px;">
+
+            <div id="configuredSitesListContainer">
                 <h4>Currently Configured Sites:</h4>
-                <ul id="configuredSitesList" style="list-style-type: none; padding: 0;">
-                    <!-- List of sites with overrides will appear here, e.g., <li>site.com <button>Edit</button> <button>Delete</button></li> -->
+                <ul id="configuredSitesList">
+                    <!-- List of sites with overrides will appear here -->
                 </ul>
             </div>
         </div>
-        <button id="saveSettings">Save Settings</button>
+
+        <div class="button-group">
+            <button id="saveSettings">Save All Settings</button>
+            <!-- Global Reset moved into the Global Shortcuts section by JS for better context -->
+        </div>
         <div id="statusMessage" class="status"></div>
     </div>
 

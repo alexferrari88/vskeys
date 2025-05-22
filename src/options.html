@@ -120,6 +120,7 @@
             font-size: 0.9em;
             white-space: nowrap;
             min-width: 80px; /* Give some base width */
+            min-height: 24px; /* Ensure it has some height even when empty */
         }
          .shortcut-item .keys em { /* Styling for "Press key..." etc. */
             font-style: normal;
@@ -318,7 +319,7 @@
             <p>Configure how and when VS Keys shortcuts are activated on a page.</p>
             <div class="shortcut-item">
                 <div class="info">
-                    <kbd id="activationShortcutDisplay" class="keys">Ctrl+Shift+S</kbd>
+                    <kbd id="activationShortcutDisplay" class="keys"></kbd>
                     <span class="description">Extension Activation Shortcut</span>
                 </div>
                 <div class="actions">

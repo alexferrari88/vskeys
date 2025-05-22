@@ -72,7 +72,9 @@ function parseKeyString(keyString) {
         'enter': 'enter', 'escape': 'escape', 'tab': 'tab', 'backspace': 'backspace', 'delete': 'delete',
         'home': 'home', 'end': 'end', 'pageup': 'pageup', 'pagedown': 'pagedown',
         '[': '[', ']': ']', '/': '/', '\\': '\\'
+        // 'spacebar': 'space' // if event.key is 'Spacebar'
     };
+    if (result.key === 'spacebar') result.key = 'space'; // Normalize spacebar to space
     result.key = keyMap[result.key] || result.key;
     return result;
 }
@@ -88,23 +90,25 @@ function eventMatchesKey(event, parsedKey, isMac) {
     // parsedKey.key is usually 'u', '1', '/'.
     
     let keyToCompareWithEvent;
-    if (parsedKey.alt && event.altKey && event.code && event.code.startsWith('Key') && event.code.length === 4) {
+    if (parsedKey.alt && event.altKey && event.code && event.code.startsWith('Key') && event.code.length === 4 && event.key.length === 1) {
         // If Alt is pressed and it's a letter key (e.g. event.code 'KeyU')
         // Compare against the character from event.code (e.g., 'u')
         keyToCompareWithEvent = event.code.substring(3).toLowerCase();
     } else {
-        const keyMap = { ' ': 'space', /* other functional keys */ };
-        keyToCompareWithEvent = keyMap[eventKeyLower] || eventKeyLower;
+        const specialKeyMap = { ' ': 'space', 'arrowdown': 'arrowdown', 'arrowup': 'arrowup', 'arrowleft': 'arrowleft', 'arrowright': 'arrowright', 'enter': 'enter', 'escape': 'escape', 'tab': 'tab', 'backspace': 'backspace', 'delete': 'delete', 'home': 'home', 'end': 'end', 'pageup': 'pageup', 'pagedown': 'pagedown' };
+        keyToCompareWithEvent = specialKeyMap[eventKeyLower] || eventKeyLower;
     }
 
-
     const keyMatches = (keyToCompareWithEvent === targetKey);
-    
     const ctrlMatch = (eventCtrl === parsedKey.ctrl);
     const shiftMatch = (event.shiftKey === parsedKey.shift);
     const altMatch = (event.altKey === parsedKey.alt);
+    // For meta key, only check if parsedKey.meta is true. If parsedKey.meta is false, event.metaKey can be anything (e.g. Mac Cmd without being part of shortcut)
+    // However, on Mac, we treat event.metaKey as Ctrl. So this is covered by ctrlMatch.
+    // The only case for distinct meta is if a shortcut explicitly uses 'Meta' (e.g. Windows Key) on non-Mac.
+    // This is rare for this extension's scope. Let's assume parsedKey.meta is primarily for Mac Cmd, handled by eventCtrl.
 
-    if (!parsedKey.ctrl && !parsedKey.shift && !parsedKey.alt && !parsedKey.meta) {
+    if (!parsedKey.ctrl && !parsedKey.shift && !parsedKey.alt && !parsedKey.meta) { // Shortcut is a single, unmodified key
         return keyMatches && !eventCtrl && !event.shiftKey && !event.altKey && !event.metaKey;
     }
 
@@ -115,16 +119,16 @@ function eventMatchesKey(event, parsedKey, isMac) {
 
 // Default global settings
 const DEFAULT_GLOBAL_SETTINGS = {
-    extensionEnabled: true, // Overall enable/disable, not used in this iteration for site-specific
+    extensionEnabled: true, 
     disabledSites: [],
     showFeedback: true,
     feedbackDuration: 1500, // ms
-    activationShortcut: 'Ctrl+Shift+S',
+    activationShortcut: 'Alt+Shift+S',
     incorrectActivationWarningThreshold: 2,
-    activationBorderColor: '#007ACC', // For the persistent border
-    feedbackOnActivation: true, // Controls temporary message on activation
-    feedbackOnDeactivation: true, // Controls temporary message on deactivation
-    persistentCueStyle: 'border' // 'border', 'none', potentially 'icon' later
+    activationBorderColor: '#007ACC', 
+    feedbackOnActivation: true, 
+    feedbackOnDeactivation: true, 
+    persistentCueStyle: 'border' 
 };
 
 // Export for testing purposes (Jest will pick this up)

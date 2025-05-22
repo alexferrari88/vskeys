@@ -6,7 +6,7 @@ const DEFAULT_SHORTCUT_SETTINGS_CONFIG = {
     'copyLine': { defaultKey: 'Ctrl+C', description: 'Copy line (empty selection) / Copy selection', category: 'Editing', defaultEnabled: true },
     'paste': { defaultKey: 'Ctrl+V', description: 'Paste', category: 'Editing', defaultEnabled: true },
     'deleteLine': { defaultKey: 'Ctrl+Shift+K', description: 'Delete Line', category: 'Line Operations', defaultEnabled: true },
-    'insertLineBelow': { defaultKey: 'Ctrl+Enter', description: 'Insert Line Below', category: 'Line Operations', defaultEnabled: true },
+    'insertLineBelow': { defaultKey: 'Ctrl+Enter', description: 'Insert Line Below', category: 'Line Operations', defaultEnabled: false },
     'insertLineAbove': { defaultKey: 'Ctrl+Shift+Enter', description: 'Insert Line Above', category: 'Line Operations', defaultEnabled: true },
     'moveLineDown': { defaultKey: 'Alt+ArrowDown', description: 'Move Line Down', category: 'Line Operations', defaultEnabled: true },
     'moveLineUp': { defaultKey: 'Alt+ArrowUp', description: 'Move Line Up', category: 'Line Operations', defaultEnabled: true },

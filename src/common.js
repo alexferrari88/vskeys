@@ -119,7 +119,13 @@ const DEFAULT_GLOBAL_SETTINGS = {
     extensionEnabled: true, // Overall enable/disable, not used in this iteration for site-specific
     disabledSites: [],
     showFeedback: true,
-    feedbackDuration: 1500 // ms
+    feedbackDuration: 1500, // ms
+    activationShortcut: 'Ctrl+Shift+S',
+    incorrectActivationWarningThreshold: 2,
+    activationBorderColor: '#007ACC', // For the persistent border
+    feedbackOnActivation: true, // Controls temporary message on activation
+    feedbackOnDeactivation: true, // Controls temporary message on deactivation
+    persistentCueStyle: 'border' // 'border', 'none', potentially 'icon' later
 };
 
 // Export for testing purposes (Jest will pick this up)

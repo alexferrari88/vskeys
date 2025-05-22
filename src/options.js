@@ -11,6 +11,12 @@ document.addEventListener('DOMContentLoaded', () => {
     const showFeedbackCheckbox = document.getElementById('showFeedbackEnabled');
     const feedbackDurationInput = document.getElementById('feedbackDuration');
 
+    // Activation Shortcut UI Elements
+    const activationShortcutDisplay = document.getElementById('activationShortcutDisplay');
+    const editActivationShortcutButton = document.getElementById('editActivationShortcut');
+    const resetActivationShortcutButton = document.getElementById('resetActivationShortcut');
+    const incorrectActivationWarningThresholdInput = document.getElementById('incorrectActivationWarningThresholdInput');
+
     // Site Overrides UI Elements
     const siteOverrideHostnameInput = document.getElementById('siteOverrideHostname');
     const manageSiteOverridesButton = document.getElementById('manageSiteOverrides');
@@ -25,12 +31,16 @@ document.addEventListener('DOMContentLoaded', () => {
     // const configuredSitesListContainerDiv = document.getElementById('configuredSitesListContainer'); // Not strictly needed if Ul is direct child
 
     let currentSettings = {}; // Stores global { actionName: { enabled, key, isCustom, isNowChord } }
+    let currentGlobalSettingsState = {}; // To store loaded global settings like activationShortcut
     let currentDisabledSites = [];
     let currentSiteOverrides = {}; // Stores { hostname: { actionName: { enabled?, key? } } }
     let activeManagingHostname = null; // Stores the hostname currently being edited in the site manager
     let temporarySiteSpecificSettings = {}; // Stores { actionName: { enabled?, key? } } for the activeManagingHostname
 
     const IS_MAC_OPTIONS = navigator.platform.toUpperCase().indexOf('MAC') >= 0;
+
+    let activeActivationKeyCapture = null; // { originalKey, capturedKey }
+    let tempActivationShortcut = null; // Stores the locally captured key before global save
 
     // --- Helper Functions ---
     function displayStatus(message, success = true) {
@@ -270,7 +280,13 @@ document.addEventListener('DOMContentLoaded', () => {
         // --- Conflict Detection ---
         if (isKeyConflicting(finalKeyToSave, actionName)) {
             const conflictingAction = getConflictingAction(finalKeyToSave, actionName);
-            displayStatus(`Error: Key "${getDisplayKey(finalKeyToSave)}" is already used by "${DEFAULT_SHORTCUT_SETTINGS_CONFIG[conflictingAction].description}".`, false);
+            let conflictDescription = "another shortcut";
+            if (conflictingAction === '__ACTIVATION_SHORTCUT__') {
+                conflictDescription = "the global Activation Shortcut";
+            } else if (DEFAULT_SHORTCUT_SETTINGS_CONFIG[conflictingAction]) {
+                conflictDescription = `"${DEFAULT_SHORTCUT_SETTINGS_CONFIG[conflictingAction].description}"`;
+            }
+            displayStatus(`Error: Key "${getDisplayKey(finalKeyToSave)}" is already used by ${conflictDescription}.`, false);
             // UI remains in capture mode for user to try a different key or cancel.
             return;
         }
@@ -288,14 +304,53 @@ document.addEventListener('DOMContentLoaded', () => {
         renderShortcuts(); // Re-render to show the new key and update button states
         displayStatus(`Key for "${DEFAULT_SHORTCUT_SETTINGS_CONFIG[actionName].description}" updated. Save settings to make permanent.`, true);
     }
+
+    // --- Conflict Detection for Activation Shortcut ---
+    function isActivationKeyConflicting(keyToTest, isResettingDefault = false) {
+        // Check against all individual shortcuts in currentSettings
+        for (const actionName in currentSettings) {
+            const setting = currentSettings[actionName];
+            // If we are resetting the activation shortcut to its default,
+            // and this actionName's key IS the default activation shortcut key,
+            // it's not a "conflict" in the traditional sense if the action itself is disabled.
+            // However, for simplicity and safety, any active shortcut using the key is a conflict.
+            if (setting.enabled && setting.key === keyToTest) {
+                return true; // Conflict found with an individual shortcut
+            }
+        }
+        // Potentially check against other global key settings if more are added in the future
+        return false; // No conflict
+    }
+
+    function getActivationConflictingActionDetails(keyToTest) {
+        for (const actionName in currentSettings) {
+            const setting = currentSettings[actionName];
+            if (setting.enabled && setting.key === keyToTest) {
+                return {
+                    description: DEFAULT_SHORTCUT_SETTINGS_CONFIG[actionName].description,
+                    source: 'Individual Shortcut'
+                };
+            }
+        }
+        return { description: 'Unknown action', source: 'Unknown' }; // Fallback
+    }
+    // --- End Conflict Detection for Activation Shortcut ---
     
     function isKeyConflicting(keyToTest, actionNameToExclude) {
+        // Check against other individual shortcuts
         for (const actionName in currentSettings) {
             if (actionName === actionNameToExclude) continue; // Don't compare with itself
 
             const setting = currentSettings[actionName];
             if (setting.enabled && setting.key === keyToTest) {
                 return true; // Conflict found
+            }
+        }
+        // Also check against the global activation shortcut
+        if (currentGlobalSettingsState.activationShortcut === keyToTest) {
+            // If actionNameToExclude is not provided, or it's not a special identifier for the activation shortcut itself
+            if (actionNameToExclude !== '__ACTIVATION_SHORTCUT__') { // Use a special identifier if needed
+                 return true; // Conflict with global activation shortcut
             }
         }
         return false; // No conflict
@@ -308,6 +363,9 @@ document.addEventListener('DOMContentLoaded', () => {
             if (setting.enabled && setting.key === keyToTest) {
                 return actionName;
             }
+        }
+        if (currentGlobalSettingsState.activationShortcut === keyToTest && actionNameToExclude !== '__ACTIVATION_SHORTCUT__') {
+            return '__ACTIVATION_SHORTCUT__'; // Special identifier for the activation shortcut
         }
         return null;
     }
@@ -325,6 +383,129 @@ document.addEventListener('DOMContentLoaded', () => {
             activeKeyCapture = null;
         }
     }
+
+    // --- Activation Shortcut Key Capture Functions ---
+    function startActivationKeyCapture() {
+        if (activeKeyCapture) cancelKeyCapture(); // Cancel other captures
+        if (activeActivationKeyCapture) cancelActivationKeyCapture();
+
+        const originalKey = currentGlobalSettingsState.activationShortcut;
+        tempActivationShortcut = originalKey; // Initialize with current
+        activeActivationKeyCapture = { originalKey, capturedKey: null };
+
+        activationShortcutDisplay.innerHTML = `<em>Press new shortcut key...</em>`;
+        editActivationShortcutButton.style.display = 'none';
+        resetActivationShortcutButton.style.display = 'none'; // Hide reset during capture
+
+        const tempSaveButton = document.createElement('button');
+        tempSaveButton.textContent = 'Save Activation Key';
+        tempSaveButton.id = 'saveCapturedActivationKey';
+        tempSaveButton.disabled = true;
+
+        const tempCancelButton = document.createElement('button');
+        tempCancelButton.textContent = 'Cancel';
+        tempCancelButton.id = 'cancelCapturedActivationKey';
+
+        const actionsDiv = editActivationShortcutButton.parentElement; // Get the .actions div
+        actionsDiv.appendChild(tempSaveButton);
+        actionsDiv.appendChild(tempCancelButton);
+
+        tempSaveButton.addEventListener('click', saveActivationCapturedKey);
+        tempCancelButton.addEventListener('click', cancelActivationKeyCapture);
+
+        document.addEventListener('keydown', handleActivationKeyCaptureEvent, true);
+    }
+
+    function handleActivationKeyCaptureEvent(event) {
+        if (!activeActivationKeyCapture) return;
+
+        event.preventDefault();
+        event.stopPropagation();
+
+        const capturedKeyString = formatCapturedKey(event); // Reuse existing formatter
+        const saveButton = document.getElementById('saveCapturedActivationKey');
+
+        if (!capturedKeyString) { // Only a modifier was pressed
+            activationShortcutDisplay.innerHTML = `<em style="color: orange;">Shortcut must include a non-modifier key.</em>`;
+            if (saveButton) saveButton.disabled = true;
+            return;
+        }
+        activeActivationKeyCapture.capturedKey = capturedKeyString;
+        activationShortcutDisplay.innerHTML = `<em>${getDisplayKey(capturedKeyString)}</em>`;
+        if (saveButton) saveButton.disabled = false;
+    }
+
+    function saveActivationCapturedKey() {
+        if (!activeActivationKeyCapture || !activeActivationKeyCapture.capturedKey) {
+            displayStatus('Activation key not fully captured.', false);
+            cancelActivationKeyCapture();
+            return;
+        }
+
+        const newKey = activeActivationKeyCapture.capturedKey;
+
+        // Conflict detection for activation shortcut
+        if (isActivationKeyConflicting(newKey)) {
+            const conflictingActionDetails = getActivationConflictingActionDetails(newKey);
+            displayStatus(`Error: Key "${getDisplayKey(newKey)}" is already used by "${conflictingActionDetails.description}". Choose a different key.`, false);
+            // UI remains in capture mode for user to try a different key or cancel.
+            // To allow this, we don't call cancelActivationKeyCapture() here.
+            // We should re-enable the save button if they type another key.
+            // For simplicity now, let's just clear the captured key and prompt again.
+            activeActivationKeyCapture.capturedKey = null;
+            activationShortcutDisplay.innerHTML = `<em>Conflict! Press new shortcut key...</em>`;
+            const saveBtn = document.getElementById('saveCapturedActivationKey');
+            if(saveBtn) saveBtn.disabled = true;
+            return;
+        }
+
+        currentGlobalSettingsState.activationShortcut = newKey;
+        tempActivationShortcut = newKey; // Update temp holder as well
+        cleanupAfterActivationKeyCapture();
+        activationShortcutDisplay.textContent = getDisplayKey(newKey);
+        resetActivationShortcutButton.style.display = (newKey !== DEFAULT_GLOBAL_SETTINGS.activationShortcut) ? 'inline-block' : 'none';
+        displayStatus('Activation shortcut updated. Save settings to make permanent.', true);
+    }
+
+    function cancelActivationKeyCapture() {
+        if (!activeActivationKeyCapture) return;
+        cleanupAfterActivationKeyCapture();
+        activationShortcutDisplay.textContent = getDisplayKey(currentGlobalSettingsState.activationShortcut); // Revert to original/last saved
+        resetActivationShortcutButton.style.display = (currentGlobalSettingsState.activationShortcut !== DEFAULT_GLOBAL_SETTINGS.activationShortcut) ? 'inline-block' : 'none';
+    }
+
+    function cleanupAfterActivationKeyCapture() {
+        if (activeActivationKeyCapture) {
+            document.removeEventListener('keydown', handleActivationKeyCaptureEvent, true);
+            activeActivationKeyCapture = null;
+        }
+        const saveBtn = document.getElementById('saveCapturedActivationKey');
+        const cancelBtn = document.getElementById('cancelCapturedActivationKey');
+        if (saveBtn) saveBtn.remove();
+        if (cancelBtn) cancelBtn.remove();
+        editActivationShortcutButton.style.display = 'inline-block';
+        // resetActivationShortcutButton display is handled by save/cancel
+    }
+    
+    function resetActivationShortcutToDefault() {
+        const defaultKey = DEFAULT_GLOBAL_SETTINGS.activationShortcut;
+        if (currentGlobalSettingsState.activationShortcut === defaultKey) return;
+
+        // Check for conflicts before resetting, though less likely for a default.
+        if (isActivationKeyConflicting(defaultKey, true)) { // true to exclude itself if it were somehow the conflict
+            const conflictingActionDetails = getActivationConflictingActionDetails(defaultKey);
+            displayStatus(`Error: Default key "${getDisplayKey(defaultKey)}" conflicts with "${conflictingActionDetails.description}". Cannot reset.`, false);
+            return;
+        }
+
+        currentGlobalSettingsState.activationShortcut = defaultKey;
+        tempActivationShortcut = defaultKey;
+        activationShortcutDisplay.textContent = getDisplayKey(defaultKey);
+        resetActivationShortcutButton.style.display = 'none';
+        displayStatus('Activation shortcut reset to default. Save settings to apply.', true);
+    }
+
+    // --- End Activation Shortcut Key Capture Functions ---
 
     function resetShortcutToDefault(actionName) {
         if (DEFAULT_SHORTCUT_SETTINGS_CONFIG[actionName]) {
@@ -870,7 +1051,9 @@ document.addEventListener('DOMContentLoaded', () => {
         chrome.storage.sync.get(['shortcutSettings', 'disabledSites', 'globalSettings', 'siteOverrides'], (data) => {
             const loadedShortcutSettings = data.shortcutSettings || {};
             currentDisabledSites = data.disabledSites || [...DEFAULT_GLOBAL_SETTINGS.disabledSites];
-            const global = data.globalSettings || { ...DEFAULT_GLOBAL_SETTINGS };
+            // Store all global settings, including our new ones
+            currentGlobalSettingsState = { ...DEFAULT_GLOBAL_SETTINGS, ...(data.globalSettings || {}) };
+            const global = currentGlobalSettingsState; // Use this for consistency below
             currentSiteOverrides = data.siteOverrides || {};
 
             currentSettings = {}; // This will store the new structure: { actionName: { enabled, key, isCustom } }
@@ -918,8 +1101,16 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             });
 
-            showFeedbackCheckbox.checked = global.hasOwnProperty('showFeedback') ? global.showFeedback : DEFAULT_GLOBAL_SETTINGS.showFeedback;
-            feedbackDurationInput.value = global.hasOwnProperty('feedbackDuration') ? global.feedbackDuration : DEFAULT_GLOBAL_SETTINGS.feedbackDuration;
+            showFeedbackCheckbox.checked = global.showFeedback;
+            feedbackDurationInput.value = global.feedbackDuration;
+
+            // Populate new Global Activation Settings
+            activationShortcutDisplay.textContent = getDisplayKey(global.activationShortcut);
+            incorrectActivationWarningThresholdInput.value = global.incorrectActivationWarningThreshold;
+            
+            editActivationShortcutButton.addEventListener('click', startActivationKeyCapture);
+            resetActivationShortcutButton.addEventListener('click', resetActivationShortcutToDefault);
+            resetActivationShortcutButton.style.display = (global.activationShortcut !== DEFAULT_GLOBAL_SETTINGS.activationShortcut) ? 'inline-block' : 'none';
 
             renderShortcuts();
             renderDisabledSites();
@@ -957,8 +1148,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const globalSettingsToSave = {
             showFeedback: showFeedbackCheckbox.checked,
-            feedbackDuration: parseInt(feedbackDurationInput.value, 10) || DEFAULT_GLOBAL_SETTINGS.feedbackDuration
+            feedbackDuration: parseInt(feedbackDurationInput.value, 10) || DEFAULT_GLOBAL_SETTINGS.feedbackDuration,
+            activationShortcut: tempActivationShortcut || currentGlobalSettingsState.activationShortcut, // Use temp if capture happened
+            incorrectActivationWarningThreshold: parseInt(incorrectActivationWarningThresholdInput.value, 10) || DEFAULT_GLOBAL_SETTINGS.incorrectActivationWarningThreshold
         };
+        // After saving, tempActivationShortcut should be cleared or aligned with currentGlobalSettingsState
+        currentGlobalSettingsState.activationShortcut = globalSettingsToSave.activationShortcut;
+        tempActivationShortcut = null;
+
 
         chrome.storage.sync.set({
             shortcutSettings: shortcutSettingsToSave,

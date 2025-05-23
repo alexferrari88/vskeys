@@ -2,13 +2,13 @@
 import { test, expect } from './fixtures.js'; // IMPORT FROM FIXTURES
 import {
   getTestPageUrl,
-  // getOptionsPageUrl, // No longer needed from helpers
   activateVSKeys,
   pressShortcut,
   getEditableValue,
   setEditableValue,
   getClipboardText,
-} from './helpers.js'; // Keep other helpers
+  getDisplayKeyForTest, 
+} from './helpers.js';
 
 test.describe('VS Keys Content Script Functionality', () => {
   let testPageUrl;
@@ -16,6 +16,7 @@ test.describe('VS Keys Content Script Functionality', () => {
   const textareaSelector = '#textarea-field';
   const contentEditableSelector = '#contenteditable-field';
   const multilineTextareaSelector = '#textarea-multiline';
+  const feedbackMessageSelector = 'div.vskeys-feedback-message';
 
   const IS_MAC_TEST = process.platform === 'darwin';
   const CTRL_OR_CMD = IS_MAC_TEST ? 'Meta' : 'Control';
@@ -24,21 +25,24 @@ test.describe('VS Keys Content Script Functionality', () => {
     testPageUrl = getTestPageUrl();
   });
 
-  // The `context` and `extensionId` are now provided by the fixture
   test.beforeEach(async ({ page, context, extensionId }) => {
-    // Reset extension settings to default for each test
+    // Capture console logs from the page and print them to the test output
+    page.on('console', msg => {
+      // Filter for our specific debug logs if needed, or print all
+      if (msg.text().startsWith('[VSKeys Debug]')) {
+        console.log(`PAGE LOG: ${msg.text()}`);
+      }
+    });
+
     const optionsUrlForReset = `chrome-extension://${extensionId}/src/options.html`;
     console.log(`[Test BeforeEach] Resetting storage via options page: ${optionsUrlForReset}`);
     
-    const optionsPage = await context.newPage(); // Use the fixture's context
+    const optionsPage = await context.newPage();
     try {
-      await optionsPage.goto(optionsUrlForReset, { timeout: 20000 }); // Increased timeout
+      await optionsPage.goto(optionsUrlForReset, { timeout: 20000 });
     } catch (e) {
       console.error(`Failed to navigate to options page for reset: ${optionsUrlForReset}`, e);
-      // You might want to take a screenshot or dump HTML here for debugging
-      // await optionsPage.screenshot({ path: `options_page_load_error_${Date.now()}.png` });
-      // console.log(await optionsPage.content());
-      throw e; // Re-throw to fail the test if options page can't be loaded
+      throw e; 
     }
     
     await optionsPage.evaluate(() => {
@@ -71,14 +75,15 @@ test.describe('VS Keys Content Script Functionality', () => {
         await page.locator(textareaSelector).focus();
         await page.locator(textareaSelector).evaluate(el => el.setSelectionRange(0, 0));
         await pressShortcut(page, `${CTRL_OR_CMD}+C`);
-        await expect(page.locator('div:has-text("Line Copied")')).toBeVisible({ timeout: 3000 });
+        await expect(page.locator(`${feedbackMessageSelector}:has-text("Line Copied")`)).toBeVisible({ timeout: 3000 });
         expect(await getClipboardText(page)).toBe('First line\n');
+        
         await page.locator(textareaSelector).evaluate(el => {
           const secondLineStart = el.value.indexOf('Second line');
           el.setSelectionRange(secondLineStart, secondLineStart);
         });
         await pressShortcut(page, `${CTRL_OR_CMD}+C`);
-        await expect(page.locator('div:has-text("Line Copied")')).toBeVisible({ timeout: 3000 });
+        await expect(page.locator(`${feedbackMessageSelector}:has-text("Line Copied")`)).toBeVisible({ timeout: 3000 });
         expect(await getClipboardText(page)).toBe('Second line\n');
       });
 
@@ -89,7 +94,7 @@ test.describe('VS Keys Content Script Functionality', () => {
       await page.locator(textareaSelector).evaluate(el => el.setSelectionRange(0, 0));
 
       await pressShortcut(page, `${CTRL_OR_CMD}+X`);
-      await expect(page.locator('div:has-text("Line Cut")')).toBeVisible({ timeout: 3000 });
+      await expect(page.locator(`${feedbackMessageSelector}:has-text("Line Cut")`)).toBeVisible({ timeout: 3000 });
 
       expect(await getClipboardText(page)).toBe('Line to cut\n');
       expect(await getEditableValue(page, textareaSelector)).toBe('Another line');
@@ -105,7 +110,7 @@ test.describe('VS Keys Content Script Functionality', () => {
       });
 
       await pressShortcut(page, `${CTRL_OR_CMD}+Shift+K`);
-      await expect(page.locator('div:has-text("Line Deleted")')).toBeVisible({ timeout: 3000 });
+      await expect(page.locator(`${feedbackMessageSelector}:has-text("Line Deleted")`)).toBeVisible({ timeout: 3000 });
       expect(await getEditableValue(page, textareaSelector)).toBe('Line one\nLine three');
     });
 
@@ -119,7 +124,7 @@ test.describe('VS Keys Content Script Functionality', () => {
       });
 
       await pressShortcut(page, `${CTRL_OR_CMD}+Shift+Enter`);
-      await expect(page.locator('div:has-text("Line Inserted Above")')).toBeVisible({ timeout: 3000 });
+      await expect(page.locator(`${feedbackMessageSelector}:has-text("Line Inserted Above")`)).toBeVisible({ timeout: 3000 });
       expect(await getEditableValue(page, textareaSelector)).toMatch(/First line\n\s*\nThird line/);
     });
 
@@ -130,7 +135,7 @@ test.describe('VS Keys Content Script Functionality', () => {
       await page.locator(textareaSelector).evaluate(el => el.setSelectionRange(0, 0));
 
       await pressShortcut(page, 'Shift+Alt+ArrowDown');
-      await expect(page.locator('div:has-text("Line Copied down")')).toBeVisible({ timeout: 3000 });
+      await expect(page.locator(`${feedbackMessageSelector}:has-text("Line Copied down")`)).toBeVisible({ timeout: 3000 });
       expect(await getEditableValue(page, textareaSelector)).toBe('Copy this down\nCopy this down\nOriginal next line');
     });
 
@@ -144,7 +149,7 @@ test.describe('VS Keys Content Script Functionality', () => {
       });
 
       await pressShortcut(page, 'Shift+Alt+ArrowUp');
-      await expect(page.locator('div:has-text("Line Copied up")')).toBeVisible({ timeout: 3000 });
+      await expect(page.locator(`${feedbackMessageSelector}:has-text("Line Copied up")`)).toBeVisible({ timeout: 3000 });
       expect(await getEditableValue(page, textareaSelector)).toBe('Original previous line\nCopy this up\nCopy this up');
     });
 
@@ -155,7 +160,7 @@ test.describe('VS Keys Content Script Functionality', () => {
       await page.locator(multilineTextareaSelector).evaluate(el => el.setSelectionRange(0, 0)); // Cursor on "Alpha"
 
       await pressShortcut(page, 'Alt+ArrowDown');
-      await expect(page.locator('div:has-text("Line Moved down")')).toBeVisible({ timeout: 3000 });
+      await expect(page.locator(`${feedbackMessageSelector}:has-text("Line Moved down")`)).toBeVisible({ timeout: 3000 });
       expect(await getEditableValue(page, multilineTextareaSelector)).toBe('Beta\nAlpha\nGamma');
     });
 
@@ -167,7 +172,7 @@ test.describe('VS Keys Content Script Functionality', () => {
       await page.locator(multilineTextareaSelector).evaluate((el, index) => el.setSelectionRange(index, index), betaIndex); // Cursor on "Beta"
 
       await pressShortcut(page, 'Alt+ArrowUp');
-      await expect(page.locator('div:has-text("Line Moved up")')).toBeVisible({ timeout: 3000 });
+      await expect(page.locator(`${feedbackMessageSelector}:has-text("Line Moved up")`)).toBeVisible({ timeout: 3000 });
       expect(await getEditableValue(page, multilineTextareaSelector)).toBe('Beta\nAlpha\nGamma');
     });
   });
@@ -177,27 +182,25 @@ test.describe('VS Keys Content Script Functionality', () => {
       const initialValue = 'Select this full line.';
       await setEditableValue(page, textareaSelector, initialValue); 
       await page.locator(textareaSelector).focus();
-      // @ts-ignore
       await page.locator(textareaSelector).evaluate(el => el.setSelectionRange(5, 5));
 
       await pressShortcut(page, `${CTRL_OR_CMD}+L`);
-      await expect(page.locator('div:has-text("Line Selected")')).toBeVisible({ timeout: 3000 });
+      await expect(page.locator(`${feedbackMessageSelector}:has-text("Line Selected")`)).toBeVisible({ timeout: 3000 });
 
       const selectedText = await page.locator(textareaSelector).evaluate(el => {
         // @ts-ignore
         return el.value.substring(el.selectionStart, el.selectionEnd);
       });
-      expect(selectedText).toBe(initialValue + (initialValue.endsWith('\n') ? '' : '\n') );
+      expect(selectedText).toBe(initialValue); 
     });
 
     test('should transform selection to UPPERCASE (Ctrl+Alt+U)', async ({ page }) => {
       await setEditableValue(page, textareaSelector, 'make this uppercase');
       await page.locator(textareaSelector).focus();
-      // @ts-ignore
-      await page.locator(textareaSelector).evaluate(el => el.setSelectionRange(0, 9)); // Select "make this"
+      await page.locator(textareaSelector).evaluate(el => el.setSelectionRange(0, 9)); 
 
       await pressShortcut(page, `${CTRL_OR_CMD}+Alt+U`);
-      await expect(page.locator('div:has-text("UPPERCASED")')).toBeVisible({ timeout: 3000 });
+      await expect(page.locator(`${feedbackMessageSelector}:has-text("UPPERCASED")`)).toBeVisible({ timeout: 3000 });
       expect(await getEditableValue(page, textareaSelector)).toBe('MAKE THIS uppercase');
     });
   });
@@ -206,7 +209,6 @@ test.describe('VS Keys Content Script Functionality', () => {
     test('should toggle line comment (Ctrl+/ or Cmd+/)', async ({ page }) => {
       await setEditableValue(page, textareaSelector, 'Line one\nLine two\nLine three');
       await page.locator(textareaSelector).focus();
-      // @ts-ignore
       await page.locator(textareaSelector).evaluate(el => {
         const lineTwoStart = el.value.indexOf('Line two');
         const lineThreeEnd = el.value.indexOf('Line three') + 'Line three'.length;
@@ -214,17 +216,16 @@ test.describe('VS Keys Content Script Functionality', () => {
       });
 
       await pressShortcut(page, `${CTRL_OR_CMD}+/`);
-      await expect(page.locator('div:has-text("Line Comment Toggled")')).toBeVisible({ timeout: 3000 });
+      await expect(page.locator(`${feedbackMessageSelector}:has-text("Line Comment Toggled")`)).toBeVisible({ timeout: 3000 });
       expect(await getEditableValue(page, textareaSelector)).toBe('Line one\n// Line two\n// Line three');
 
-      // @ts-ignore
       await page.locator(textareaSelector).evaluate(el => {
         const lineTwoStart = el.value.indexOf('// Line two');
         const lineThreeEnd = el.value.indexOf('// Line three') + '// Line three'.length;
         el.setSelectionRange(lineTwoStart, lineThreeEnd);
       });
       await pressShortcut(page, `${CTRL_OR_CMD}+/`);
-      await expect(page.locator('div:has-text("Line Comment Toggled")')).toBeVisible({ timeout: 3000 });
+      await expect(page.locator(`${feedbackMessageSelector}:has-text("Line Comment Toggled")`)).toBeVisible({ timeout: 3000 });
       expect(await getEditableValue(page, textareaSelector)).toBe('Line one\nLine two\nLine three');
     });
   });
@@ -233,19 +234,22 @@ test.describe('VS Keys Content Script Functionality', () => {
     test('should add line comment with chord (Ctrl+K Ctrl+C)', async ({ page }) => {
       await setEditableValue(page, textareaSelector, 'Comment me via chord');
       await page.locator(textareaSelector).focus();
-      // @ts-ignore
       await page.locator(textareaSelector).evaluate(el => el.setSelectionRange(0, 0));
 
+      // Press Ctrl+K (or Cmd+K)
       await page.keyboard.down(CTRL_OR_CMD);
       await page.keyboard.press('K');
       await page.keyboard.up(CTRL_OR_CMD);
+      
+      const chordFeedbackText = getDisplayKeyForTest('Ctrl+K', IS_MAC_TEST) + "...";
+      await expect(page.locator(`${feedbackMessageSelector}:has-text("${chordFeedbackText}")`)).toBeVisible({ timeout: 3000 });
 
-      const chordFeedbackText = IS_MAC_TEST ? '⌘K...' : 'Ctrl+K...';
-      await expect(page.locator(`div:has-text("${chordFeedbackText}")`)).toBeVisible({ timeout: 3000 });
-
+      // Press Ctrl+C (or Cmd+C) for the second part of the chord
+      await page.keyboard.down(CTRL_OR_CMD);
       await page.keyboard.press('C');
+      await page.keyboard.up(CTRL_OR_CMD);
 
-      await expect(page.locator('div:has-text("Line Comment Added")')).toBeVisible({ timeout: 3000 });
+      await expect(page.locator(`${feedbackMessageSelector}:has-text("Line Comment Added")`)).toBeVisible({ timeout: 3000 });
       expect(await getEditableValue(page, textareaSelector)).toBe('// Comment me via chord');
     });
   });
@@ -260,7 +264,7 @@ test.describe('VS Keys Content Script Functionality', () => {
         const range = document.createRange();
         const textNode = el.childNodes[0]; 
         if (textNode && textNode.nodeType === Node.TEXT_NODE) {
-          range.setStart(textNode, 0);
+          range.setStart(textNode, 0); // Corrected: set start offset
           range.setEnd(textNode, "Hello contenteditable world.".length);
           window.getSelection().removeAllRanges();
           window.getSelection().addRange(range);
@@ -272,7 +276,7 @@ test.describe('VS Keys Content Script Functionality', () => {
       }, contentEditableSelector);
 
       await pressShortcut(page, `${CTRL_OR_CMD}+C`);
-      await expect(page.locator('div:has-text("Selection Copied")')).toBeVisible({ timeout: 3000 });
+      await expect(page.locator(`${feedbackMessageSelector}:has-text("Selection Copied")`)).toBeVisible({ timeout: 3000 });
       expect(await getClipboardText(page)).toBe('Hello contenteditable world.');
     });
 
@@ -280,8 +284,6 @@ test.describe('VS Keys Content Script Functionality', () => {
       await setEditableValue(page, contentEditableSelector, ''); 
       const textToPaste = 'Pasted into contenteditable.';
       
-      // Grant permissions for the current context if not already done by config
-      // Although it's in playwright.config.js, being explicit here doesn't hurt for debugging
       try {
         await context.grantPermissions(['clipboard-read', 'clipboard-write']);
       } catch (e) {
@@ -296,7 +298,7 @@ test.describe('VS Keys Content Script Functionality', () => {
       await page.locator(contentEditableSelector).focus();
       await pressShortcut(page, `${CTRL_OR_CMD}+V`);
       
-      await expect(page.locator('div:has-text("Pasted")')).toBeVisible({ timeout: 3500 });
+      await expect(page.locator(`${feedbackMessageSelector}:has-text("Pasted")`)).toBeVisible({ timeout: 3500 });
       expect(await getEditableValue(page, contentEditableSelector)).toBe(textToPaste);
     });
   });

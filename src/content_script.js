@@ -1,38 +1,30 @@
+// src/content_script.js
 // content_script.js - Main logic, event listeners, settings, keydown router
 
-// For Jest testing environment, ensure common.js constants are loaded.
-// In a real browser extension, common.js is loaded via manifest.json before this script.
-if (typeof DEFAULT_SHORTCUT_SETTINGS_CONFIG === 'undefined' || typeof DEFAULT_GLOBAL_SETTINGS === 'undefined') {
-    if (typeof require !== 'undefined') { // Check if require is available (Node.js/Jest environment)
-        const common = require('./src/common.js'); // Adjust path if necessary
-        global.DEFAULT_SHORTCUT_SETTINGS_CONFIG = common.DEFAULT_SHORTCUT_SETTINGS_CONFIG;
-        global.DEFAULT_GLOBAL_SETTINGS = common.DEFAULT_GLOBAL_SETTINGS;
-    }
-}
+// Constants are now expected to be loaded from common.js via manifest
+// (or via require in Jest environment if content_script.js itself is tested directly, which is rare)
 
-let currentShortcutSettings = {}; // This will store the *effective* settings for the current page
+let currentShortcutSettings = {}; 
 let currentGlobalSettings = { ...(typeof DEFAULT_GLOBAL_SETTINGS !== 'undefined' ? DEFAULT_GLOBAL_SETTINGS : {}) };
-let currentSiteOverrides = {}; // Stores all site overrides { hostname: { actionName: { enabled?, key? } } }
+let currentSiteOverrides = {}; 
 let isSiteDisabled = false;
-let chordState = null; // e.g., 'K_PENDING'
-// const CHORD_TIMEOUT = 1500; // ms - This will be sourced from currentGlobalSettings.feedbackDuration or a specific chord timeout if needed
-const IS_MAC = navigator.platform.toUpperCase().indexOf('MAC') >= 0;
-let _extensionHandledPaste = false; // Global flag for paste handling
+let chordState = null; 
+// IS_MAC_COMMON from common.js will be used, aliased to IS_MAC for brevity in this file
+const IS_MAC = typeof IS_MAC_COMMON !== 'undefined' ? IS_MAC_COMMON : (typeof navigator !== 'undefined' && navigator.platform.toUpperCase().indexOf('MAC') >= 0);
+let _extensionHandledPaste = false; 
 
-// New state variables for activation logic
 let isVscodeModeActive = false;
-let lastFocusedEditableOnAction = null; // Element reference
+let lastFocusedEditableOnAction = null; 
 let incorrectActivationCount = 0;
 let incorrectActivationLastTime = 0;
-const INCORRECT_ACTIVATION_TIME_WINDOW = 3000; // ms, within which repeated presses count
-let parsedActivationShortcut = null; // Stores the parsed activation shortcut key object
-const VSCODE_KEYS_ACTIVE_CLASS = 'vscode-keys-active-field'; // CSS class for active fields
+const INCORRECT_ACTIVATION_TIME_WINDOW = 3000; 
+let parsedActivationShortcut = null; 
+const VSCODE_KEYS_ACTIVE_CLASS = 'vscode-keys-active-field'; 
 
-// Map action names to their handler functions (ensure this is complete)
 const shortcutActionHandlers = {
     'cutLine': handleCutLine,
     'copyLine': handleCopyLine,
-    'paste': handlePaste, // This is the one we updated
+    'paste': handlePaste, 
     'deleteLine': handleDeleteLine,
     'insertLineBelow': handleInsertLineBelow,
     'insertLineAbove': handleInsertLineAbove,
@@ -57,28 +49,26 @@ const shortcutActionHandlers = {
 
 
 async function mainKeyDownHandler(event) {
-    if (isSiteDisabled) {
-        return;
-    }
+    if (isSiteDisabled) return;
 
     const activeElement = document.activeElement;
     const currentElementIsEditable = isEditable(activeElement);
 
-    // --- Activation Shortcut Handling ---
+    // --- Activation Shortcut Handling --- (Keep as is)
     if (parsedActivationShortcut && eventMatchesKey(event, parsedActivationShortcut, IS_MAC)) {
         event.preventDefault();
         event.stopPropagation();
 
-        if (isVscodeModeActive) { // Attempting to deactivate
+        if (isVscodeModeActive) {
             isVscodeModeActive = false;
             lastFocusedEditableOnAction = currentElementIsEditable ? activeElement : null;
             if (currentGlobalSettings.feedbackOnDeactivation && currentGlobalSettings.showFeedback) {
                 showFeedbackMessage('VSCode Shortcuts Deactivated', lastFocusedEditableOnAction, currentGlobalSettings);
             }
             removePersistentActivationCues();
-            incorrectActivationCount = 0; // Reset counter on successful deactivation
-            chordState = null; // Clear any pending chord
-        } else { // Attempting to activate
+            incorrectActivationCount = 0; 
+            chordState = null; 
+        } else { 
             if (currentElementIsEditable) {
                 isVscodeModeActive = true;
                 lastFocusedEditableOnAction = activeElement;
@@ -86,159 +76,164 @@ async function mainKeyDownHandler(event) {
                     showFeedbackMessage('VSCode Shortcuts Activated', lastFocusedEditableOnAction, currentGlobalSettings);
                 }
                 applyPersistentActivationCues();
-                incorrectActivationCount = 0; // Reset counter on successful activation
+                incorrectActivationCount = 0; 
             } else {
-                // Incorrect activation attempt (not in an editable field)
                 const now = Date.now();
                 if (now - incorrectActivationLastTime < INCORRECT_ACTIVATION_TIME_WINDOW) {
                     incorrectActivationCount++;
                 } else {
-                    incorrectActivationCount = 1; // Reset if too much time has passed
+                    incorrectActivationCount = 1; 
                 }
                 incorrectActivationLastTime = now;
 
                 if (incorrectActivationCount >= currentGlobalSettings.incorrectActivationWarningThreshold) {
                     if (currentGlobalSettings.showFeedback) {
-                        showFeedbackMessage('Focus an editable field to use VSCode shortcuts.', null, currentGlobalSettings); // General message
+                        showFeedbackMessage('Focus an editable field to use VSCode shortcuts.', null, currentGlobalSettings); 
                     }
-                    incorrectActivationCount = 0; // Reset after warning
+                    incorrectActivationCount = 0; 
                 }
-                // The activation shortcut itself was handled (preventDefault/stopPropagation already called)
-                // So we don't need to worry about default browser actions for this specific key press.
             }
         }
-        return; // Activation shortcut handled, nothing more to do in this event.
+        return; 
     }
 
-    // If VSCode mode is not active, do nothing further.
-    if (!isVscodeModeActive) {
-        return;
-    }
 
-    // If mode is active, but current element is not editable, clear chord and do nothing.
-    if (!currentElementIsEditable) {
+    if (!isVscodeModeActive || !currentElementIsEditable) {
+        if (chordState) console.log('[VSKeys Debug] Chord cancelled due to mode/editable change.');
         chordState = null;
         return;
     }
     
-    // --- VSCode Shortcut Processing (Only if isVscodeModeActive and in an editable field) ---
-    const eventCtrlKey = IS_MAC ? event.metaKey : event.ctrlKey;
-
     // --- Chord Handling ---
+    // Check if the current key event is ONLY a modifier key.
+    // We want to ignore these if a chord is pending, waiting for the actual character key.
+    const isModifierOnlyEvent = ['Control', 'Alt', 'Shift', 'Meta'].includes(event.key);
+
+    if (chordState && isModifierOnlyEvent) {
+        // If a chord is pending and this is just a modifier key being pressed/held,
+        // don't process it as the second part of the chord yet.
+        // Also, don't reset chordState here, as the modifier might be part of the *next* actual key press.
+        // We also don't preventDefault, as the modifier might be needed for the next key.
+        console.log(`[VSKeys Debug] Chord pending (${chordState.prefix}), modifier key ${event.key} pressed. Ignoring for now, awaiting non-modifier.`);
+        return; 
+    }
+
+
     let potentialChordPrefixEvent = false;
     let activeChordPrefixString = '';
 
-    for (const actionName in currentShortcutSettings) {
-        const setting = currentShortcutSettings[actionName];
-        if (!setting.enabled) continue;
+    // This loop is for detecting the START of a chord (the prefix)
+    if (!chordState) { // Only try to detect a new prefix if no chord is currently active
+        for (const actionName in currentShortcutSettings) {
+            const setting = currentShortcutSettings[actionName];
+            if (!setting.enabled) continue;
+            const isEffectivelyChord = setting.isNowChord; 
 
-        const defaultConfig = DEFAULT_SHORTCUT_SETTINGS_CONFIG[actionName];
-        const isEffectivelyChord = defaultConfig.chordPrefix || setting.isNowChord === true;
-
-        if (isEffectivelyChord) {
-            const parts = setting.key.split(/\s+/);
-            if (parts.length >= 2) { 
-                const currentActionPrefix = parts[0];
-                const parsedPrefixKey = parseKeyString(currentActionPrefix);
-                if (eventMatchesKey(event, parsedPrefixKey, IS_MAC)) {
-                    potentialChordPrefixEvent = true;
-                    activeChordPrefixString = currentActionPrefix;
-                    break;
+            if (isEffectivelyChord) {
+                const parts = setting.key.split(/\s+/);
+                if (parts.length >= 2) { 
+                    const currentActionPrefix = parts[0];
+                    const parsedPrefixKey = parseKeyString(currentActionPrefix);
+                    if (eventMatchesKey(event, parsedPrefixKey, IS_MAC)) {
+                        console.log(`[VSKeys Debug] Potential chord prefix matched: ${currentActionPrefix} for event key: ${event.key}`);
+                        potentialChordPrefixEvent = true;
+                        activeChordPrefixString = currentActionPrefix;
+                        break;
+                    }
                 }
             }
         }
     }
 
-    if (potentialChordPrefixEvent) {
+
+    if (potentialChordPrefixEvent) { // This means a new chord prefix was just matched
         chordState = { prefix: activeChordPrefixString, time: Date.now() };
+        console.log('[VSKeys Debug] Chord state SET:', chordState);
         event.preventDefault();
         event.stopPropagation();
         if (currentGlobalSettings.showFeedback) {
-            showFeedbackMessage(`${getDisplayKey(activeChordPrefixString)}...`, activeElement, currentGlobalSettings);
+            const displayPrefix = typeof getDisplayKeyForCommon === 'function' ? getDisplayKeyForCommon(activeChordPrefixString, IS_MAC) : activeChordPrefixString;
+            showFeedbackMessage(`${displayPrefix}...`, activeElement, currentGlobalSettings);
         }
         setTimeout(() => {
             if (chordState && chordState.prefix === activeChordPrefixString && (Date.now() - chordState.time >= currentGlobalSettings.feedbackDuration)) {
+                console.log('[VSKeys Debug] Chord timed out:', activeChordPrefixString);
                 chordState = null;
                 if (currentGlobalSettings.showFeedback) {
-                    showFeedbackMessage(`${getDisplayKey(activeChordPrefixString)} timed out`, activeElement, currentGlobalSettings);
+                     const displayPrefix = typeof getDisplayKeyForCommon === 'function' ? getDisplayKeyForCommon(activeChordPrefixString, IS_MAC) : activeChordPrefixString;
+                    showFeedbackMessage(`${displayPrefix} timed out`, activeElement, currentGlobalSettings);
                 }
             }
         }, currentGlobalSettings.feedbackDuration);
         return;
     }
     
+    // This part handles the SECOND key of an ALREADY ACTIVE chord
     if (chordState && (Date.now() - chordState.time < currentGlobalSettings.feedbackDuration)) {
+        // We already checked for isModifierOnlyEvent and returned if true.
+        // So, event.key here should be the actual non-modifier key.
+        console.log(`[VSKeys Debug] Active chord state: ${chordState.prefix}. Trying to match second part with event key: ${event.key}, Ctrl: ${event.ctrlKey || event.metaKey}, Shift: ${event.shiftKey}, Alt: ${event.altKey}`);
         let chordActionFound = false;
         for (const actionName in currentShortcutSettings) {
             const setting = currentShortcutSettings[actionName];
             if (!setting.enabled) continue;
-
-            const defaultConfig = DEFAULT_SHORTCUT_SETTINGS_CONFIG[actionName];
-            const isEffectivelyChord = defaultConfig.chordPrefix || setting.isNowChord === true;
+            const isEffectivelyChord = setting.isNowChord;
 
             if (isEffectivelyChord) {
                 const parts = setting.key.split(/\s+/);
                 if (parts.length < 2) continue;
-
                 const expectedPrefix = parts[0];
                 const expectedSecondKeyString = parts.slice(1).join(' ');
 
                 if (chordState.prefix === expectedPrefix) {
                     const parsedSecondKey = parseKeyString(expectedSecondKeyString);
+                    console.log(`[VSKeys Debug] Checking action ${actionName}. Expected second part: ${expectedSecondKeyString} (parsed: ${JSON.stringify(parsedSecondKey)})`);
+                    
                     if (eventMatchesKey(event, parsedSecondKey, IS_MAC)) {
+                        console.log(`[VSKeys Debug] Chord action ${actionName} MATCHED!`);
                         if (shortcutActionHandlers[actionName]) {
                             event.preventDefault();
                             event.stopPropagation();
                             await shortcutActionHandlers[actionName](activeElement, currentGlobalSettings);
                             chordActionFound = true;
-                            break;
+                            break; 
                         }
                     }
                 }
             }
         }
-        const previousChordPrefix = chordState.prefix; 
+        const previousChordPrefixForLog = chordState.prefix; 
         chordState = null; 
+        console.log('[VSKeys Debug] Chord state CLEARED after attempting to match second part.');
         if (chordActionFound) {
             return;
         } else {
-            // If a chord sequence was active (previousChordPrefix is true) but the second key didn't match,
-            // we should still consume the event to prevent it from triggering other actions.
-            if (previousChordPrefix) {
-                event.preventDefault();
-                event.stopPropagation();
-                return;
-            }
+            // If a chord was active, but this key didn't complete it, consume the event
+            // to prevent it from triggering other non-chord shortcuts or default browser actions.
+            console.log(`[VSKeys Debug] Chord prefix ${previousChordPrefixForLog} was active, but key ${event.key} did not complete any defined chord. Consuming event.`);
+            event.preventDefault();
+            event.stopPropagation();
+            return;
         }
     }
 
     // --- Regular (Non-Chorded) Shortcuts ---
     for (const actionName in currentShortcutSettings) {
         const setting = currentShortcutSettings[actionName];
-        if (!setting.enabled) continue;
-
-        const defaultConfig = DEFAULT_SHORTCUT_SETTINGS_CONFIG[actionName];
-        const isEffectivelyChord = defaultConfig.chordPrefix || setting.isNowChord === true;
-
-        if (isEffectivelyChord) continue; 
+        if (!setting.enabled || setting.isNowChord) continue; 
 
         const parsedKey = parseKeyString(setting.key);
-
         if (eventMatchesKey(event, parsedKey, IS_MAC)) {
             const handler = shortcutActionHandlers[actionName];
             if (handler) {
                 let handled = true; 
-
-                if (actionName === 'paste') {
-                    _extensionHandledPaste = true;
-                }
+                if (actionName === 'paste') _extensionHandledPaste = true;
                 
                 if (actionName === 'smartHome') { 
                     handled = await handler(activeElement, currentGlobalSettings);
                 } else {
                     await handler(activeElement, currentGlobalSettings);
                 }
-
                 if (handled !== false) { 
                     event.preventDefault();
                     event.stopPropagation();
@@ -249,7 +244,6 @@ async function mainKeyDownHandler(event) {
     }
 }
 
-// --- Visual Feedback Functions ---
 function applyPersistentActivationCues() {
     if (!currentGlobalSettings || currentGlobalSettings.persistentCueStyle !== 'border') return;
     const styleId = 'vscode-keys-dynamic-styles';
@@ -268,28 +262,21 @@ function applyPersistentActivationCues() {
 }
 
 function removePersistentActivationCues() {
-    // if (!currentGlobalSettings || currentGlobalSettings.persistentCueStyle !== 'border') return; // Not needed if class is specific
     document.querySelectorAll(`.${VSCODE_KEYS_ACTIVE_CLASS}`).forEach(el => {
         el.classList.remove(VSCODE_KEYS_ACTIVE_CLASS);
     });
-    const styleSheet = document.getElementById('vscode-keys-dynamic-styles');
-    if (styleSheet) {
-        // styleSheet.remove(); // Optionally remove the stylesheet itself, or keep for re-activation
-    }
 }
-// --- End Visual Feedback Functions ---
 
 function determineEffectiveShortcutSettings(baseGlobalSettings, siteOverrides, hostname) {
     const effectiveSettings = {};
     const currentHostname = hostname.toLowerCase();
-
     let siteRule = null;
+
     if (siteOverrides[currentHostname]) {
         siteRule = siteOverrides[currentHostname];
     } else {
         const parts = currentHostname.split('.');
-        // Check for wildcard matches like *.example.com, then *.com (less likely for *.com to be useful)
-        for (let i = 0; i < parts.length -1; i++) { // Iterate to create *.domain.tld, *.sub.domain.tld etc.
+        for (let i = 0; i < parts.length -1; i++) { 
             const wildcardHostname = `*.${parts.slice(i + 1).join('.')}`;
             if (siteOverrides[wildcardHostname]) {
                 siteRule = siteOverrides[wildcardHostname];
@@ -309,17 +296,17 @@ function determineEffectiveShortcutSettings(baseGlobalSettings, siteOverrides, h
 
         let effectiveKey = globalSettingForAction.key;
         let effectiveEnabled = globalSettingForAction.enabled;
-        let isNowChord = globalSettingForAction.isNowChord; 
+        let isNowChord = effectiveKey.includes(' '); // Recalculate based on current effectiveKey
 
         if (siteRule && siteRule[actionName]) {
             const siteActionOverride = siteRule[actionName];
-            if (siteActionOverride.hasOwnProperty('key')) {
+            if (siteActionOverride.hasOwnProperty('key') && siteActionOverride.key !== null && siteActionOverride.key !== undefined) {
                 effectiveKey = siteActionOverride.key;
-                isNowChord = effectiveKey.includes(' ');
             }
-            if (siteActionOverride.hasOwnProperty('enabled')) {
+            if (siteActionOverride.hasOwnProperty('enabled') && siteActionOverride.enabled !== null && siteActionOverride.enabled !== undefined) {
                 effectiveEnabled = siteActionOverride.enabled;
             }
+            isNowChord = effectiveKey.includes(' '); // Update based on potentially overridden key
         }
         
         effectiveSettings[actionName] = {
@@ -392,13 +379,10 @@ function loadSettingsAndInitialize() {
             console.log(`VS Keys Extension disabled on ${currentHostname}`);
             removePersistentActivationCues(); 
             isVscodeModeActive = false; 
-            currentShortcutSettings = {}; // Explicitly clear shortcuts if site is disabled
+            currentShortcutSettings = {}; 
         } else {
-            // *** PRIMARY FIX IS HERE ***
-            // Populate currentShortcutSettings with the effective settings for this site.
             currentShortcutSettings = determineEffectiveShortcutSettings(baseGlobalSettings, currentSiteOverrides, currentHostname);
-
-            if (isVscodeModeActive) { // If mode was active (e.g. from before settings reload)
+            if (isVscodeModeActive) { 
                 applyPersistentActivationCues();
             } else {
                 removePersistentActivationCues(); 
@@ -407,7 +391,6 @@ function loadSettingsAndInitialize() {
     });
 }
 
-// --- Event Listeners ---
 document.addEventListener('keydown', mainKeyDownHandler, true); 
 
 document.addEventListener('paste', (event) => {
@@ -432,7 +415,6 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 loadSettingsAndInitialize();
 console.log("VS Keys Extension Loaded.");
 
-// Exports for testing
 if (typeof module !== 'undefined' && module.exports) {
     module.exports = {
         loadSettingsAndInitialize,
@@ -440,7 +422,6 @@ if (typeof module !== 'undefined' && module.exports) {
         mainKeyDownHandler,
         applyPersistentActivationCues,
         removePersistentActivationCues,
-        // Allow tests to get/set internal state
         _getState: () => ({
             currentShortcutSettings,
             currentGlobalSettings,
@@ -459,8 +440,7 @@ if (typeof module !== 'undefined' && module.exports) {
             if (newState.hasOwnProperty('parsedActivationShortcut')) parsedActivationShortcut = newState.parsedActivationShortcut;
             if (newState.hasOwnProperty('chordState')) chordState = newState.chordState;
         },
-         // Expose other functions or constants if needed for specific tests
-        shortcutActionHandlers, // To check if handlers are mapped
+        shortcutActionHandlers, 
         IS_MAC,
         VSCODE_KEYS_ACTIVE_CLASS
     };

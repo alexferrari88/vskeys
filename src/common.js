@@ -28,101 +28,122 @@ const DEFAULT_SHORTCUT_SETTINGS_CONFIG = {
     'toUpperCase': { defaultKey: 'Ctrl+Alt+U', description: 'Selection to UPPERCASE', category: 'Case Transformation', defaultEnabled: true },
     'toLowerCase': { defaultKey: 'Ctrl+Alt+L', description: 'Selection to lowercase', category: 'Case Transformation', defaultEnabled: true },
     'toTitleCase': { defaultKey: 'Ctrl+Alt+T', description: 'Selection to Title Case', category: 'Case Transformation', defaultEnabled: true },
-    // 'trimTrailingWhitespace': { defaultKey: 'Alt+Shift+T', description: 'Trim Trailing Whitespace (Selection/Current Line)', category: 'Whitespace', defaultEnabled: true }, // Non-chorded alternative if preferred
 };
 
+const IS_MAC_COMMON = typeof navigator !== 'undefined' && navigator.platform.toUpperCase().indexOf('MAC') >= 0;
+
+function getDisplayKeyForCommon(keyString, isMacPlatform = IS_MAC_COMMON) {
+    let result = keyString;
+    if (isMacPlatform) {
+        result = result
+            .replace(/\bCtrl\b/g, '⌘')
+            .replace(/\bMeta\b/g, '⌘') // Handle Meta as Cmd on Mac
+            .replace(/\bCmd\b/g, '⌘')  // Explicit Cmd also
+            .replace(/\bAlt\b/g, '⌥')
+            .replace(/\bShift\b/g, '⇧')
+            .replace(/\bEnter\b/g, '↵')
+            .replace(/\bArrowUp\b/g, '↑')
+            .replace(/\bArrowDown\b/g, '↓')
+            .replace(/\bArrowLeft\b/g, '←')
+            .replace(/\bArrowRight\b/g, '→')
+            .replace(/\+/g, ' '); // Visual separation on Mac
+    } else { // Non-Mac
+        // Normalize "Control" to "Ctrl" for display consistency if it comes from raw input
+        // However, if keyString is already "Ctrl", this won't change it.
+        // This part of the logic is primarily for ensuring `getDisplayKeyForTest` and internal representation match.
+        // If `formatCapturedKey` in options.js always saves "Ctrl", then this replace might not be strictly needed here
+        // for display, but it standardizes.
+        result = result.replace(/\bControl\b/g, 'Ctrl'); 
+        result = result.replace(/\bMeta\b/g, 'Win'); // Meta on Win/Linux is typically Win/Super key
+
+        result = result
+            .replace(/\bArrowUp\b/g, 'Up')
+            .replace(/\bArrowDown\b/g, 'Down')
+            .replace(/\bArrowLeft\b/g, 'Left')
+            .replace(/\bArrowRight\b/g, 'Right');
+    }
+    return result.trim();
+}
+
+
 function parseKeyString(keyString) {
-    // Step 0: Handle exact single space input first.
     if (keyString === " ") {
         return { ctrl: false, shift: false, alt: false, meta: false, key: 'space' };
     }
-
-    // Step 1: Trim leading/trailing whitespace for all other cases.
     let normalized = keyString.trim();
-
     if (normalized === "") {
         return { ctrl: false, shift: false, alt: false, meta: false, key: '' };
     }
-
-    // Step 2: Normalize spacing around '+' signs. "CTRL + c" -> "CTRL+c"
-    // This also handles cases like "Ctrl +", reducing them to "Ctrl+"
     normalized = normalized.replace(/\s*\+\s*/g, '+');
-
-
-    // Step 3: Take only the first part if it's a chord (e.g., "Ctrl+K" from "Ctrl+K C").
     const chordParts = normalized.split(/\s+/);
-    const keyComboToParse = chordParts[0].toLowerCase(); // "ctrl+k", "ctrl+c"
-
-    // Step 4: Split the key combination by '+' to identify modifiers and the main key.
-    // Filter out empty parts that can arise from "Ctrl++" or a trailing "+" like in "Ctrl+"
+    const keyComboToParse = chordParts[0].toLowerCase(); 
     const parts = keyComboToParse.split('+').filter(p => p !== "");
 
     const result = {
-        ctrl: parts.includes('ctrl'),
+        ctrl: parts.includes('ctrl') || parts.includes('control'), // Accept "Control" as well
         shift: parts.includes('shift'),
         alt: parts.includes('alt'),
-        meta: parts.includes('meta'),
-        key: parts.filter(p => !['ctrl', 'shift', 'alt', 'meta'].includes(p)).pop() || ''
+        meta: parts.includes('meta'), // Meta for Windows Key or Mac Command if explicitly specified
+        key: parts.filter(p => !['ctrl', 'control', 'shift', 'alt', 'meta'].includes(p)).pop() || ''
     };
-
-    // Step 5: Apply key map for special key names.
-    // The 'space' key is already handled by the initial check.
+    
     const keyMap = {
         'arrowdown': 'arrowdown', 'arrowup': 'arrowup', 'arrowleft': 'arrowleft', 'arrowright': 'arrowright',
         'enter': 'enter', 'escape': 'escape', 'tab': 'tab', 'backspace': 'backspace', 'delete': 'delete',
         'home': 'home', 'end': 'end', 'pageup': 'pageup', 'pagedown': 'pagedown',
-        '[': '[', ']': ']', '/': '/', '\\': '\\'
-        // 'spacebar': 'space' // if event.key is 'Spacebar'
+        '[': '[', ']': ']', '/': '/', '\\': '\\',
+        'spacebar': 'space', 'space': 'space' // Normalize spacebar and space
     };
-    if (result.key === 'spacebar') result.key = 'space'; // Normalize spacebar to space
-    result.key = keyMap[result.key] || result.key;
+    result.key = keyMap[result.key.toLowerCase()] || result.key.toLowerCase(); // Ensure key is lowercased for comparison unless special
+    if (result.key.length === 1 && result.key >= 'a' && result.key <= 'z') {
+        // Keep single letters as is for comparison with event.key (which can be upper or lower case)
+        // The eventMatchesKey will handle case comparison for the key itself.
+    }
+
     return result;
 }
 
-function eventMatchesKey(event, parsedKey, isMac) {
-    const eventCtrl = isMac ? event.metaKey : event.ctrlKey;
+function eventMatchesKey(event, parsedKey, isMacPlatform = IS_MAC_COMMON) {
+    const eventCtrl = isMacPlatform ? event.metaKey : event.ctrlKey;
     const eventKeyLower = event.key.toLowerCase();
-    const targetKey = parsedKey.key.toLowerCase();
+    let targetKey = parsedKey.key; // Don't lowercase targetKey here if it's like '[' or ']'
 
-    // If Alt is part of the shortcut, event.key might be altered by the OS/browser
-    // e.g. Alt+U -> ü on some systems. 'event.code' gives the physical key.
-    // We need to be careful: 'event.code' is like 'KeyU', 'Digit1', 'Slash'.
-    // parsedKey.key is usually 'u', '1', '/'.
+    // Standardize common event.key values
+    const eventKeyMap = { ' ': 'space', 'escape': 'escape', 'arrowdown': 'arrowdown', /* ... add more as needed */ };
+    const mappedEventKey = eventKeyMap[eventKeyLower] || eventKeyLower;
     
-    let keyToCompareWithEvent;
-    if (parsedKey.alt && event.altKey && event.code && event.code.startsWith('Key') && event.code.length === 4 && event.key.length === 1) {
-        // If Alt is pressed and it's a letter key (e.g. event.code 'KeyU')
-        // Compare against the character from event.code (e.g., 'u')
-        keyToCompareWithEvent = event.code.substring(3).toLowerCase();
+    // If parsedKey.key is a single character (a-z), compare case-insensitively with event.key
+    // For other keys (ArrowDown, Space, [, etc.), compare directly (after mapping event key)
+    let keyMatches;
+    if (targetKey.length === 1 && targetKey >= 'a' && targetKey <= 'z') {
+        keyMatches = (mappedEventKey === targetKey); // eventKeyLower is already lowercase
     } else {
-        const specialKeyMap = { ' ': 'space', 'arrowdown': 'arrowdown', 'arrowup': 'arrowup', 'arrowleft': 'arrowleft', 'arrowright': 'arrowright', 'enter': 'enter', 'escape': 'escape', 'tab': 'tab', 'backspace': 'backspace', 'delete': 'delete', 'home': 'home', 'end': 'end', 'pageup': 'pageup', 'pagedown': 'pagedown' };
-        keyToCompareWithEvent = specialKeyMap[eventKeyLower] || eventKeyLower;
+        keyMatches = (mappedEventKey === targetKey);
     }
 
-    const keyMatches = (keyToCompareWithEvent === targetKey);
+
     const ctrlMatch = (eventCtrl === parsedKey.ctrl);
     const shiftMatch = (event.shiftKey === parsedKey.shift);
     const altMatch = (event.altKey === parsedKey.alt);
-    // For meta key, only check if parsedKey.meta is true. If parsedKey.meta is false, event.metaKey can be anything (e.g. Mac Cmd without being part of shortcut)
-    // However, on Mac, we treat event.metaKey as Ctrl. So this is covered by ctrlMatch.
-    // The only case for distinct meta is if a shortcut explicitly uses 'Meta' (e.g. Windows Key) on non-Mac.
-    // This is rare for this extension's scope. Let's assume parsedKey.meta is primarily for Mac Cmd, handled by eventCtrl.
+    
+    // Meta key check (primarily for non-Mac 'Meta' like Windows key)
+    // On Mac, Meta (Cmd) is handled by eventCtrl.
+    const metaMatch = isMacPlatform ? true : (event.metaKey === parsedKey.meta);
 
-    if (!parsedKey.ctrl && !parsedKey.shift && !parsedKey.alt && !parsedKey.meta) { // Shortcut is a single, unmodified key
+
+    if (!parsedKey.ctrl && !parsedKey.shift && !parsedKey.alt && !parsedKey.meta) { 
         return keyMatches && !eventCtrl && !event.shiftKey && !event.altKey && !event.metaKey;
     }
 
-    const finalMatch = ctrlMatch && shiftMatch && altMatch && keyMatches;
-
-    return finalMatch;
+    return ctrlMatch && shiftMatch && altMatch && metaMatch && keyMatches;
 }
 
-// Default global settings
+
 const DEFAULT_GLOBAL_SETTINGS = {
     extensionEnabled: true, 
     disabledSites: [],
     showFeedback: true,
-    feedbackDuration: 1500, // ms
+    feedbackDuration: 1500,
     activationShortcut: 'Alt+Shift+S',
     incorrectActivationWarningThreshold: 2,
     activationBorderColor: '#007ACC', 
@@ -131,12 +152,13 @@ const DEFAULT_GLOBAL_SETTINGS = {
     persistentCueStyle: 'border' 
 };
 
-// Export for testing purposes (Jest will pick this up)
 if (typeof module !== 'undefined' && module.exports) {
     module.exports = {
         DEFAULT_SHORTCUT_SETTINGS_CONFIG,
         parseKeyString,
         eventMatchesKey,
-        DEFAULT_GLOBAL_SETTINGS
+        DEFAULT_GLOBAL_SETTINGS,
+        IS_MAC_COMMON,
+        getDisplayKeyForCommon
     };
 }

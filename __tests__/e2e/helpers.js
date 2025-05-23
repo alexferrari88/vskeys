@@ -1,71 +1,6 @@
 // __tests__/e2e/helpers.js
 import path from 'path';
 
-// const KNOWN_EXTENSION_ID = 'lmffcggpbgijhcpbemfphhdnfbpdffeb'; // YOUR ACTUAL ID
-
-// export async function getExtensionId(context) {
-//   // FOR DEBUGGING - RETURN HARDCODED ID
-//   if (KNOWN_EXTENSION_ID) {
-//     // console.warn(`[GET_EXTENSION_ID] USING HARDCODED EXTENSION ID: ${KNOWN_EXTENSION_ID}`);
-//     return KNOWN_EXTENSION_ID;
-//   }
-
-//   // Fallback logic (should not be reached if KNOWN_EXTENSION_ID is set)
-//   console.log("[GET_EXTENSION_ID] Starting dynamic search (this should not happen with hardcoded ID)...");
-//   let extensionId = null;
-//   const maxAttempts = 10;
-//   const retryDelay = 1000;
-
-//   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-//     const serviceWorkers = context.serviceWorkers();
-//     if (serviceWorkers.length > 0) {
-//       for (const sw of serviceWorkers) {
-//         if (sw.url().startsWith('chrome-extension://')) {
-//           extensionId = sw.url().split('/')[2];
-//           break;
-//         }
-//       }
-//     }
-//     if (extensionId) break;
-
-//     const backgroundPages = context.backgroundPages();
-//      if (backgroundPages.length > 0) {
-//       for (const bp of backgroundPages) {
-//         if (bp.url().startsWith('chrome-extension://')) {
-//           extensionId = bp.url().split('/')[2];
-//           break;
-//         }
-//       }
-//     }
-//     if (extensionId) break;
-    
-//     const pages = context.pages();
-//     for (const p of pages) {
-//         if (p.url().startsWith('chrome-extension://')) {
-//             extensionId = p.url().split('/')[2];
-//             break;
-//         }
-//     }
-//     if (extensionId) break;
-
-//     if (attempt < maxAttempts) {
-//       await new Promise(resolve => setTimeout(resolve, retryDelay));
-//     }
-//   }
-
-//   if (!extensionId) {
-//     throw new Error(`Dynamic Extension ID discovery failed after ${maxAttempts} attempts.`);
-//   }
-//   return extensionId;
-// }
-
-// // Helper to get the options page URL
-// export async function getOptionsPageUrl(context) {
-//   const extensionId = await getExtensionId(context);
-//   return `chrome-extension://${extensionId}/src/options.html`;
-// }
-
-// Helper to get the test page URL
 export function getTestPageUrl() {
   const testPagePath = path.resolve(__dirname, 'test-page.html');
   return `file://${testPagePath}`;
@@ -77,7 +12,7 @@ export async function activateVSKeys(page) {
     await page.locator('body').focus({ timeout: 1000 });
   } catch (e) { /* Gulp */ }
 
-  const activationKey = 'S';
+  const activationKey = 'S'; // Default activation key, assuming it's Alt+Shift+S
   await page.keyboard.down('Alt');
   await page.keyboard.down('Shift');
   await page.keyboard.press(activationKey);
@@ -85,9 +20,11 @@ export async function activateVSKeys(page) {
   await page.keyboard.up('Alt');
 
   try {
-    await page.locator('div:has-text("VSCode Shortcuts Activated")').waitFor({ state: 'visible', timeout: 3500 });
+    // Use the more specific selector for feedback messages
+    await page.locator('div.vskeys-feedback-message:has-text("VSCode Shortcuts Activated")').waitFor({ state: 'visible', timeout: 3500 });
   } catch (e) {
-    await page.waitForTimeout(750);
+    // console.warn("Activation feedback not immediately visible, continuing test.");
+    await page.waitForTimeout(750); // Give a bit more time if feedback is delayed
   }
 }
 
@@ -113,6 +50,7 @@ export async function getEditableValue(page, selector) {
   if (tagName === 'input' || tagName === 'textarea') {
     return locator.inputValue();
   } else if (await locator.evaluate(el => el.isContentEditable)) {
+    // Normalize line endings for contenteditable
     return (await locator.innerText()).replace(/\r\n|\r/g, '\n');
   }
   return '';
@@ -126,57 +64,67 @@ export async function setEditableValue(page, selector, value) {
 
   const tagName = await locator.evaluate(el => el.tagName.toLowerCase());
   if (tagName === 'input' || tagName === 'textarea') {
-    await locator.fill('');
+    // Using fill should correctly clear and set the value.
+    await locator.fill(value); 
   } else if (await locator.evaluate(el => el.isContentEditable)) {
+    // For contenteditable, select all and delete is more robust than fill.
     await page.keyboard.press(isMac ? 'Meta+A' : 'Control+A');
-    await page.keyboard.press('Backspace');
-    if (await locator.innerText() !== '') {
-        await locator.evaluate(el => el.innerHTML = '');
+    await page.keyboard.press('Backspace'); 
+    // Ensure it's empty if Backspace didn't clear everything (e.g. complex structures)
+    if (value !== '' && await locator.innerText() !== '') {
+        await locator.evaluate(el => el.innerHTML = ''); // Force clear
+    }
+    if (value !== '') {
+      // Type for contenteditable to simulate user input, especially if it triggers events.
+      // If pasting HTML or complex content, page.evaluate with execCommand('insertHTML') might be better.
+      // For plain text, type is usually fine.
+      await locator.type(value, { delay: 30 });
     }
   }
-
-  if (value === '') return;
-  
-  if (tagName === 'input' || tagName === 'textarea') {
-    await locator.fill(value);
-  } else {
-    await locator.type(value, { delay: 30 });
-  }
 }
+
 
 export async function pressShortcut(page, shortcutString) {
   const isMac = process.platform === 'darwin';
   let playwrightShortcut = shortcutString;
 
   if (isMac) {
-    playwrightShortcut = playwrightShortcut.replace(/\bCtrl\b/g, 'Meta');
-    playwrightShortcut = playwrightShortcut.replace(/\bCmd\b/g, 'Meta');
-    playwrightShortcut = playwrightShortcut.replace(/\bAlt\b/g, 'Alt');
+    playwrightShortcut = playwrightShortcut.replace(/\bCtrl\b/g, 'Meta'); // For Mac, Ctrl in string means Cmd
+    playwrightShortcut = playwrightShortcut.replace(/\bCmd\b/g, 'Meta'); // Explicit Cmd also maps to Meta
+    // Alt and Shift are usually themselves
   } else {
-     playwrightShortcut = playwrightShortcut.replace(/\bCmd\b/g, 'Control');
+     playwrightShortcut = playwrightShortcut.replace(/\bCmd\b/g, 'Control'); // On Win/Linux, Cmd in string means Control
+     // Ctrl is already Control for Playwright on Win/Linux
   }
   await page.keyboard.press(playwrightShortcut);
 }
 
 export async function getClipboardText(page) {
-  await page.bringToFront();
+  await page.bringToFront(); // Ensure the page is active
   try {
-    await page.locator('body').focus({timeout: 1000});
-  } catch(e) { /* Gulp */ }
-  await page.waitForTimeout(250);
+    await page.locator('body').focus({timeout: 1000}); // Focus body to ensure clipboard ops work
+  } catch(e) { /* Gulp: Focus might fail on some pages but clipboard might still work */ }
+  
+  await page.waitForTimeout(250); // Small delay for clipboard to stabilize after action
+
   try {
     const text = await page.evaluate(async () => {
       try {
         return await navigator.clipboard.readText();
       } catch (err) {
+        console.error("Clipboard read error in browser context:", err);
         return `CLIPBOARD_READ_ERROR: ${err.message}`;
       }
     });
-     if (text.startsWith('CLIPBOARD_READ_ERROR')) {
-        return "";
+    // Check if the evaluate call itself returned an error string
+     if (typeof text === 'string' && text.startsWith('CLIPBOARD_READ_ERROR')) {
+        console.warn("Failed to read clipboard from page:", text);
+        return ""; // Return empty or handle as error appropriately
     }
     return text;
   } catch (e) {
+    // This catch is for errors in page.evaluate itself, not navigator.clipboard.readText
+    console.error("Error during page.evaluate for clipboard read:", e);
     return "";
   }
 }
@@ -186,7 +134,8 @@ export function getDisplayKeyForTest(keyString, isMac = process.platform === 'da
     if (isMac) {
         result = result
             .replace(/\bCtrl\b/g, '⌘')
-            .replace(/\bMeta\b/g, '⌘')
+            .replace(/\bMeta\b/g, '⌘') // Meta on Mac is Cmd
+            .replace(/\bCmd\b/g, '⌘')  // Explicit Cmd
             .replace(/\bAlt\b/g, '⌥')
             .replace(/\bShift\b/g, '⇧')
             .replace(/\bEnter\b/g, '↵')
@@ -194,13 +143,17 @@ export function getDisplayKeyForTest(keyString, isMac = process.platform === 'da
             .replace(/\bArrowDown\b/g, '↓')
             .replace(/\bArrowLeft\b/g, '←')
             .replace(/\bArrowRight\b/g, '→')
-            .replace(/\+/g, ' ');
-    } else {
+            .replace(/\+/g, ' '); // Visual separation for Mac
+    } else { // Non-Mac
         result = result
+            .replace(/\bControl\b/g, 'Ctrl') // Normalize "Control" to "Ctrl"
+            .replace(/\bMeta\b/g, 'Win')    // Meta on Win/Linux is typically Windows/Super key
+            .replace(/\bCmd\b/g, 'Ctrl')   // Treat Cmd as Ctrl on non-Mac
             .replace(/\bArrowUp\b/g, 'Up')
             .replace(/\bArrowDown\b/g, 'Down')
             .replace(/\bArrowLeft\b/g, 'Left')
             .replace(/\bArrowRight\b/g, 'Right');
+        // Keep '+' for non-Mac as it's standard display
     }
     return result.trim();
 }

@@ -1,3 +1,4 @@
+// src/content_actions.js
 // content_actions.js - High-level action handlers for shortcuts
 
 async function handleCutLine(element, globalSettings) {
@@ -104,48 +105,34 @@ async function handlePaste(element, globalSettings) {
         
         if (typeof textToPaste !== 'string') {
              showFeedbackMessage("Clipboard empty or unreadable", element, globalSettings);
-             return; // No finally block needed as _extensionHandledPaste is reset by event listener
+             return; 
         }
 
         const selDetails = getSelectionDetails(element);
-
-        // CRUCIAL: Check if the textToPaste (from clipboard) ends with a newline.
-        // This is the primary indicator of a "line copied via our extension or similar".
         const clipboardContentIsLine = textToPaste.endsWith('\n');
 
         if (clipboardContentIsLine && selDetails.collapsed && element.tagName.toLowerCase() !== 'input') {
             let { lineStart, fullText } = getCurrentLineInfo(element);
-            
-            // textToPaste already includes its necessary trailing newline.
             let textToInsert = textToPaste; 
 
             if (element.isContentEditable) {
                 setSelection(element, lineStart, lineStart); 
                 
                 const tempDiv = document.createElement('div');
-                tempDiv.innerText = textToInsert.replace(/\n$/, ''); // Handle escaping
-                let htmlToInsert = tempDiv.innerHTML.replace(/\n/g, '<br>');
-                 // Ensure the final \n from textToInsert results in a visible line break if it wasn't already double <br>
+                tempDiv.innerText = textToInsert.replace(/\n$/, ''); 
+                let htmlToInsert = tempDiv.innerHTML.replace(/\n/g, '<br>'); 
                 if (textToInsert.endsWith('\n') && !htmlToInsert.endsWith('<br>')) {
                     htmlToInsert += '<br>';
-                } else if (textToInsert.endsWith('\n\n') && htmlToInsert.endsWith('<br>')) {
-                    // if original had \n\n and we have one <br>, add another
-                    // This logic might need more refinement for multiple trailing newlines
                 }
-
-                
                 document.execCommand('insertHTML', false, htmlToInsert);
                 
             } else { // textarea
                 replaceText(element, textToInsert, lineStart, lineStart);
                 const newCursorPos = lineStart + textToInsert.length;
                 setSelection(element, newCursorPos, newCursorPos);
-                
             }
             showFeedbackMessage("Line Pasted", element, globalSettings);
-
         } else { 
-            
             if (element.isContentEditable) {
                 document.execCommand('insertText', false, textToPaste);
             } else { // textarea or input
@@ -158,7 +145,6 @@ async function handlePaste(element, globalSettings) {
         console.error("VS Keys - Paste error:", err);
         showFeedbackMessage("Paste failed (see console)", element, globalSettings);
     }
-    // _extensionHandledPaste is reset by the 'paste' event listener's timeout
 }
 
 function handleDeleteLine(element, globalSettings) {
@@ -176,19 +162,12 @@ function handleInsertLineBelow(element, globalSettings) {
     if (element.isContentEditable) {
         const sel = window.getSelection();
         sel.modify("move", "forward", "lineboundary");
-        document.execCommand('insertHTML', false, '<br>'); // More reliable than insertParagraph sometimes
-        // Ideally, get indentation from current line and apply to new one.
-        // This is complex in contenteditable.
+        document.execCommand('insertHTML', false, '<br>');
     } else {
         const { lineEnd, lineText, fullText } = getCurrentLineInfo(element);
         const indentation = lineText.match(/^\s*/)[0];
         const textToInsert = '\n' + indentation;
-        // If at the very end of the document and no newline, add one first
         let effectiveLineEnd = lineEnd;
-        if (lineEnd === fullText.length && fullText[lineEnd-1] !== '\n' && lineEnd > 0) {
-            // Needs to insert \n first, then new line with indent
-            // For simplicity with replaceText, we just insert after current content
-        }
         replaceText(element, textToInsert, effectiveLineEnd, effectiveLineEnd, effectiveLineEnd + textToInsert.length, effectiveLineEnd + textToInsert.length);
     }
     showFeedbackMessage("Line Inserted Below", element, globalSettings);
@@ -199,28 +178,19 @@ function handleInsertLineAbove(element, globalSettings) {
         const sel = window.getSelection();
         if (sel.rangeCount > 0) {
             sel.modify("move", "backward", "lineboundary");
-            const currentLineStartRange = sel.getRangeAt(0).cloneRange(); // Store cursor position
-
-            // Try to get indentation. This is highly heuristic for contenteditable.
-            const tempRange = currentLineStartRange.cloneRange();
-            tempRange.setEnd(tempRange.startContainer, tempRange.startOffset); // Collapse to start
-            // Try to get text of current line to sniff indent (very rough)
+            const currentLineStartRange = sel.getRangeAt(0).cloneRange(); 
             let indent = "";
             try {
                 const lineCheckRange = document.createRange();
-                lineCheckRange.setStart(currentLineStartRange.startContainer, 0); // Start of current block/node
+                lineCheckRange.setStart(currentLineStartRange.startContainer, 0); 
                 lineCheckRange.setEnd(currentLineStartRange.startContainer, currentLineStartRange.startOffset);
                 const textBeforeCursorInNode = lineCheckRange.toString();
                 indent = textBeforeCursorInNode.match(/^\s*/)[0];
             } catch(e) {/*ignore*/}
-
-            document.execCommand('insertHTML', false, indent + '<br>'); // Insert new line above (effectively)
-            
-            // Try to restore cursor to the *original* line's start, which is now one line down
-            // This is also heuristic as DOM structure might have changed significantly
+            document.execCommand('insertHTML', false, indent + '<br>');
             try {
                 sel.removeAllRanges();
-                sel.addRange(currentLineStartRange); // This range is now relative to new structure
+                sel.addRange(currentLineStartRange); 
             } catch(e) {/* ignore */}
         }
     } else {
@@ -244,8 +214,7 @@ function handleMoveLine(element, direction, globalSettings) {
     const originalSelStart = T.selectionStart;
     const originalSelEnd = T.selectionEnd;
     const startOffsetInLine = originalSelStart - lineStart;
-    const endOffsetInLine = originalSelEnd - lineStart; // Could be different if selection spans multiple chars
-
+    const endOffsetInLine = originalSelEnd - lineStart; 
 
     if (direction === 'down' && cursorLineIndex < lines.length - 1) {
         const lineToMove = lines.splice(cursorLineIndex, 1)[0];
@@ -264,7 +233,6 @@ function handleMoveLine(element, direction, globalSettings) {
     for(let i=0; i < targetLineIndex; i++) {
         newGlobalLineStart += lines[i].length +1; 
     }
-    // Ensure cursor stays within new line bounds
     const newLineLength = lines[targetLineIndex].length;
     const newCursorStart = Math.min(newGlobalLineStart + startOffsetInLine, newGlobalLineStart + newLineLength);
     const newCursorEnd = Math.min(newGlobalLineStart + endOffsetInLine, newGlobalLineStart + newLineLength);
@@ -277,7 +245,7 @@ function handleCopyLineUpDown(element, direction, globalSettings) {
     if (element.tagName.toLowerCase() === 'input') {
         const originalText = element.value;
         const selStart = element.selectionStart;
-        const newText = direction === 'up' ? originalText + '\n' + originalText : originalText + '\n' + originalText; // Simplified for input
+        const newText = direction === 'up' ? originalText + '\n' + originalText : originalText + '\n' + originalText; 
         replaceText(element, newText, 0, originalText.length, 
                     direction === 'up' ? selStart : selStart + originalText.length + 1,
                     direction === 'up' ? selStart : selStart + originalText.length + 1);
@@ -290,14 +258,11 @@ function handleCopyLineUpDown(element, direction, globalSettings) {
 
         if (direction === 'down') {
             replaceText(element, textToCopy, lineEnd + (fullText[lineEnd] === '\n' ? 1:0) , lineEnd + (fullText[lineEnd] === '\n' ? 1:0) );
-            // Cursor moves to the *copied* line (VS Code behavior for copy down is cursor stays, for copy up it moves)
-            // Let's make it consistent: cursor moves to the newly created line
             const newCursorLineStartPos = lineEnd + (fullText[lineEnd] === '\n' ? 1:0);
             setSelection(element, newCursorLineStartPos + cursorOffsetInLineStart, newCursorLineStartPos + cursorOffsetInLineEnd);
 
         } else { // up
             replaceText(element, textToCopy, lineStart, lineStart);
-             // Cursor moves to the newly created (upper) line
             setSelection(element, lineStart + cursorOffsetInLineStart, lineStart + cursorOffsetInLineEnd);
         }
     }
@@ -323,11 +288,8 @@ function handleIndentSelection(element, direction, globalSettings) {
 
 function handleSmartHome(element, globalSettings) {
     if (element.isContentEditable) {
-        // Standard browser 'Home' is usually sufficient. Advanced smart home is too complex here.
-        // Returning false would let the browser handle it if mainKeyDownHandler structure changes.
-        // For now, we preventDefault if this handler is matched.
         showFeedbackMessage("Smart Home (ContentEditable: Native)", element, globalSettings);
-        return false; // Let browser handle Home key for contenteditable
+        return false; 
     }
     const T = getTextareaHelper(element);
     const { start: cursorPos } = T.getSelection();
@@ -335,13 +297,13 @@ function handleSmartHome(element, globalSettings) {
     const firstNonWhitespacePosInLine = lineText.match(/^\s*/)[0].length;
     const absoluteFirstNonWhitespace = lineStart + firstNonWhitespacePosInLine;
 
-    if (cursorPos === absoluteFirstNonWhitespace && cursorPos !== lineStart) { // At first text, not col 0
-        T.setSelection(lineStart, lineStart); // Go to true start
-    } else { // Elsewhere, or at col 0
-        T.setSelection(absoluteFirstNonWhitespace, absoluteFirstNonWhitespace); // Go to first non-whitespace
+    if (cursorPos === absoluteFirstNonWhitespace && cursorPos !== lineStart) { 
+        T.setSelection(lineStart, lineStart); 
+    } else { 
+        T.setSelection(absoluteFirstNonWhitespace, absoluteFirstNonWhitespace); 
     }
     showFeedbackMessage("Smart Home", element, globalSettings);
-    return true; // We handled it
+    return true; 
 }
 
 function handleToggleLineCommentAction(element, mode, globalSettings) {
@@ -380,7 +342,7 @@ function handleToLowerCase(element, globalSettings) {
 
 function handleToTitleCase(element, globalSettings) {
     transformSelectionText(element, (text) => 
-        text.toLowerCase().replace(/(?:^|\s|-)\S/g, char => char.toUpperCase()) // Improved Title Case for hyphens too
+        text.toLowerCase().replace(/(?:^|\s|-)\S/g, char => char.toUpperCase())
     , "Title Cased", globalSettings);
 }
 
@@ -393,26 +355,32 @@ function handleTrimTrailingWhitespaceAction(element, globalSettings) {
     const T = getTextareaHelper(element);
     const sel = T.getSelection();
     const originalValue = T.value;
-    let newValue = originalValue; // Initialize with original
+    let newValue = originalValue; 
     let newSelStart = sel.start;
     let newSelEnd = sel.end;
     let trimmed = false;
 
     if (sel.start === sel.end) { // No selection, trim current line
-        const { lineStart, lineEnd, lineText } = getCurrentLineInfo(element);
+        const { lineStart, lineEnd, lineText } = getCurrentLineInfo(element); // This calls mocked getLineBoundaries
         const trimmedLine = lineText.replace(/\s+$/, '');
         if (trimmedLine.length !== lineText.length) {
             newValue = originalValue.substring(0, lineStart) + trimmedLine + originalValue.substring(lineEnd);
-            if (sel.start > lineStart + trimmedLine.length) { // Cursor was in trimmed part
+            if (sel.start > lineStart + trimmedLine.length) { 
                 newSelStart = newSelEnd = lineStart + trimmedLine.length;
             }
             trimmed = true;
         }
     } else { // Selection exists, trim trailing whitespace on each selected line
-        let { lineStart: firstLineStartSel } = getLineBoundaries(originalValue, sel.start);
-        // Ensure lastLineActualEnd is the true end of the line containing sel.end
-        let { lineStart: selEndLineStart, lineEnd: selEndLineEnd } = getLineBoundaries(originalValue, sel.end > sel.start ? sel.end -1 : sel.end);
+        let { lineStart: firstLineStartSel } = getLineBoundaries(originalValue, sel.start); // Direct call 1
         
+        let selEndForBoundarySearch = sel.end;
+        // If selection ends ON a newline, we want the boundary for the character BEFORE that newline.
+        if(sel.end > 0 && originalValue[sel.end-1] === '\n' && sel.end > sel.start) {
+             selEndForBoundarySearch = sel.end -1;
+        }
+        // This call determines the end of the block of text to process for trimming.
+        let {lineEnd: selEndLineEnd} = getLineBoundaries(originalValue, selEndForBoundarySearch); // Direct call 2
+
         const affectedTextOriginal = originalValue.substring(firstLineStartSel, selEndLineEnd);
         const lines = affectedTextOriginal.split('\n');
         const trimmedLines = lines.map(line => line.replace(/\s+$/, ''));
@@ -421,7 +389,10 @@ function handleTrimTrailingWhitespaceAction(element, globalSettings) {
         if (affectedTextOriginal !== newAffectedText) {
             newValue = originalValue.substring(0, firstLineStartSel) + newAffectedText + originalValue.substring(selEndLineEnd);
             const lengthDiff = affectedTextOriginal.length - newAffectedText.length;
-            newSelEnd = Math.max(sel.start, sel.end - lengthDiff); // Adjust selection end
+            
+            newSelStart = sel.start; 
+            newSelEnd = Math.max(newSelStart, sel.end - lengthDiff);
+
             trimmed = true;
         }
     }
@@ -433,4 +404,27 @@ function handleTrimTrailingWhitespaceAction(element, globalSettings) {
     } else {
         showFeedbackMessage("No trailing whitespace found", element, globalSettings);
     }
+}
+
+if (typeof module !== 'undefined' && module.exports) {
+    module.exports = {
+        handleCutLine,
+        handleCopyLine,
+        handlePaste,
+        handleDeleteLine,
+        handleInsertLineBelow,
+        handleInsertLineAbove,
+        handleMoveLine,
+        handleCopyLineUpDown,
+        handleSelectLine,
+        handleIndentSelection,
+        handleSmartHome,
+        handleToggleLineCommentAction,
+        handleToggleBlockCommentAction,
+        handleSelectWordOrNextOccurrenceAction,
+        handleToUpperCase,
+        handleToLowerCase,
+        handleToTitleCase,
+        handleTrimTrailingWhitespaceAction
+    };
 }

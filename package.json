@@ -4,7 +4,7 @@
   "description": "**Bring your favorite VS Code text editing shortcuts to any text field on the web!**",
   "main": "common.js",
   "scripts": {
-    "test": "jest",
+    "test:unit": "jest __tests__/unit",
     "test:e2e": "npx playwright test",
     "build": "rm -rf dist && mkdir dist && cp manifest.json dist/ && cp -r src/ dist/ && cp -r icons/ dist/",
     "zip": "zip -r vskeys.zip dist/"

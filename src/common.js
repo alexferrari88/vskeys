@@ -1,3 +1,4 @@
+// src/common.js
 // common.js - Shared configurations and helpers
 
 const DEFAULT_SHORTCUT_SETTINGS_CONFIG = {
@@ -36,9 +37,10 @@ function getDisplayKeyForCommon(keyString, isMacPlatform = IS_MAC_COMMON) {
     let result = keyString;
     if (isMacPlatform) {
         result = result
-            .replace(/\bCtrl\b/g, '⌘')
-            .replace(/\bMeta\b/g, '⌘') // Handle Meta as Cmd on Mac
-            .replace(/\bCmd\b/g, '⌘')  // Explicit Cmd also
+            .replace(/\bControl\b/g, '⌘') // Replace "Control" first
+            .replace(/\bCtrl\b/g, '⌘')   // Then replace "Ctrl"
+            .replace(/\bMeta\b/g, '⌘')   // Handle Meta as Cmd on Mac
+            .replace(/\bCmd\b/g, '⌘')    // Explicit Cmd also
             .replace(/\bAlt\b/g, '⌥')
             .replace(/\bShift\b/g, '⇧')
             .replace(/\bEnter\b/g, '↵')
@@ -48,13 +50,8 @@ function getDisplayKeyForCommon(keyString, isMacPlatform = IS_MAC_COMMON) {
             .replace(/\bArrowRight\b/g, '→')
             .replace(/\+/g, ' '); // Visual separation on Mac
     } else { // Non-Mac
-        // Normalize "Control" to "Ctrl" for display consistency if it comes from raw input
-        // However, if keyString is already "Ctrl", this won't change it.
-        // This part of the logic is primarily for ensuring `getDisplayKeyForTest` and internal representation match.
-        // If `formatCapturedKey` in options.js always saves "Ctrl", then this replace might not be strictly needed here
-        // for display, but it standardizes.
         result = result.replace(/\bControl\b/g, 'Ctrl'); 
-        result = result.replace(/\bMeta\b/g, 'Win'); // Meta on Win/Linux is typically Win/Super key
+        result = result.replace(/\bMeta\b/g, 'Win'); 
 
         result = result
             .replace(/\bArrowUp\b/g, 'Up')

@@ -10,7 +10,6 @@
     "clipboardRead",
     "clipboardWrite",
     "activeTab",
-    "scripting",
     "storage"
   ],
   "content_scripts": [

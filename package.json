@@ -8,7 +8,7 @@
     "test:unit": "jest __tests__/unit",
     "test:e2e": "npx playwright test",
     "build": "rm -rf dist && mkdir dist && cp manifest.json dist/ && cp -r src/ dist/ && cp -r icons/ dist/",
-    "zip": "zip -r vskeys.zip dist/"
+    "zip": "rm -f vskeys.zip && cd dist && zip -r ../vskeys.zip ."
   },
   "keywords": [],
   "author": "",

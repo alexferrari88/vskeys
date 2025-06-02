@@ -79,7 +79,7 @@ Here's a list of commonly used shortcuts available by default (these can be togg
 
 ### From Chrome Web Store (Recommended - Coming Soon!)
 
-1.  Once published, visit the VS Keys page on the Chrome Web Store.
+1.  Visit the VS Keys page on the Chrome Web Store: [https://chromewebstore.google.com/detail/vs-keys/mkelbmonkfkljnakbomaoodaigpnepjl](https://chromewebstore.google.com/detail/vs-keys/mkelbmonkfkljnakbomaoodaigpnepjl).
 2.  Click "Add to Chrome".
 3.  Enjoy your enhanced text editing!
 
